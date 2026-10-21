@@ -139,7 +139,20 @@ export function AgendamentoDemo({ token }: { token: string }) {
   };
 
   return <AgendamentoUI vm={vm} buscarSlots={buscarSlots}
-    onCancelar={async () => { setStore((s) => ({ ...s, appointments: s.appointments.map((a) => a.id === ag.id ? { ...a, status: 'cancelado' as const } : a) })); }}
+    onCancelar={async () => {
+      // Regra configurável: cancelou dentro do prazo → estorna o sinal pago.
+      const estorna = store.business.config_estorno_cliente_no_prazo ?? true;
+      setStore((s) => ({
+        ...s,
+        appointments: s.appointments.map((a) => a.id === ag.id ? { ...a, status: 'cancelado' as const } : a),
+        payments: (s.payments ?? []).map((pg) => pg.agendamento_id === ag.id && pg.tipo === 'sinal'
+          ? { ...pg, status: pg.status === 'pago' ? (estorna ? 'estornado' as const : pg.status) : pg.status === 'pendente' ? 'expirado' as const : pg.status }
+          : pg),
+      }));
+      if (estorna && (store.payments ?? []).some((pg) => pg.agendamento_id === ag.id && pg.tipo === 'sinal' && pg.status === 'pago')) {
+        toast.success('Sinal estornado (simulação). Em produção, cai de volta via Pix.');
+      }
+    }}
     onRemarcar={async (novoInicio) => {
       const ini = new Date(novoInicio);
       const dur = new Date(ag.fim_ts).getTime() - new Date(ag.inicio_ts).getTime();

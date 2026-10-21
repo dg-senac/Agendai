@@ -6,21 +6,26 @@ const Calendario = dynamic(() => import('./calendario'), { ssr: false, loading: 
 const CarrosselAvaliacoes = dynamic(() => import('./carrossel-avaliacoes'), { ssr: false });
 import { LazyMotion, domAnimation, m, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
-import { ArrowLeft, ArrowRight, CalendarPlus, Check, Clock3, Loader2, MapPin, MessageCircle, Scissors, UserRound } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CalendarPlus, Check, Clock3, Copy, Loader2, MapPin, MessageCircle, QrCode, Scissors, UserRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useDemoStore } from '@/components/use-demo-store';
 import { apenasDigitos, iniciais, novoToken, type Appointment, type Business, type Member, type Review, type Service } from '@/lib/demo';
 import { encontrarConflito, formatarHora, gerarIcs, gerarSlots, membroAtende } from '@/lib/disponibilidade';
+import { calcularSinal, dentroDoLimiteMensal, planoEfetivo } from '@/lib/planos';
+import { gerarCopiaEColaSimulada } from '@/lib/pagamentos/simulado';
 import { moeda } from '@/lib/utils';
 
 export type SlotPub = { membro_id: string; inicio: string; fim: string };
-export type ResultadoAgendar = { token: string; status: string; sinal_centavos: number; preco_centavos: number; membro_id: string; inicio: string; fim: string };
+export type PagamentoPix = { id: string; copia_cola: string; qr_base64?: string | null; expira_em: string; valor_centavos: number; simulado: boolean };
+export type ResultadoAgendar = { id?: string; token: string; status: string; sinal_centavos: number; preco_centavos: number; membro_id: string; inicio: string; fim: string; pagamento?: PagamentoPix };
 type DadosCliente = { nome: string; whatsapp: string; email: string; observacoes: string; consentimento: boolean };
 
 type UiProps = {
   business: Business; services: Service[]; members: Member[]; reviews: Review[];
   buscarSlots: (data: Date, servicoId: string, membroId: string | null) => Promise<SlotPub[]>;
   agendar: (d: { servicoId: string; membroId: string | null; inicio: string; cliente: DadosCliente }) => Promise<ResultadoAgendar>;
+  consultarStatus?: (token: string) => Promise<{ status: string }>;
+  simularPix?: (token: string, acao: 'pagar' | 'expirar') => Promise<void>;
 };
 
 const formatarWhats = (v: string) => {
@@ -33,7 +38,7 @@ const formatarWhats = (v: string) => {
 
 const ETAPAS = ['Serviço', 'Profissional', 'Data e hora', 'Seus dados', 'Resumo'];
 
-export function PublicaUI({ business, services, members, reviews, buscarSlots, agendar }: UiProps) {
+export function PublicaUI({ business, services, members, reviews, buscarSlots, agendar, consultarStatus, simularPix }: UiProps) {
   const cor = business.cor_primaria ?? '#4F46E5';
   const [step, setStep] = useState(0);
   const [servico, setServico] = useState<Service | null>(null);
@@ -51,16 +56,24 @@ export function PublicaUI({ business, services, members, reviews, buscarSlots, a
 
   const irPara = (s: number) => { setStep(s); wizardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
 
+  async function celebrar() {
+    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      const confetti = (await import('canvas-confetti')).default;
+      confetti({ particleCount: 70, spread: 65, origin: { y: 0.7 }, colors: [cor, '#a5b4fc', '#fbcfe8'] });
+    }
+  }
+
   async function confirmar() {
     if (!servico || !slot) return;
     setBusy(true);
     try {
       const r = await agendar({ servicoId: servico.id, membroId: membroSel, inicio: slot.inicio, cliente });
       setResultado(r);
-      setStep(5);
-      if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-        const confetti = (await import('canvas-confetti')).default;
-        confetti({ particleCount: 70, spread: 65, origin: { y: 0.7 }, colors: [cor, '#a5b4fc', '#fbcfe8'] });
+      if (r.status === 'pendente_pagamento' && r.pagamento) {
+        setStep(5); // tela do Pix
+      } else {
+        setStep(6);
+        await celebrar();
       }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Não foi possível concluir. Tente de novo.');
@@ -174,14 +187,21 @@ export function PublicaUI({ business, services, members, reviews, buscarSlots, a
                         ['Cliente', `${cliente.nome} · ${cliente.whatsapp}`],
                       ].map(([r, v]) => <div key={r} className="between" style={{ padding: '8px 0', fontSize: 13 }}><span className="muted">{r}</span><strong style={{ textAlign: 'right' }}>{v}</strong></div>)}
                       <div className="between" style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 6, fontSize: 14 }}><span>Total no atendimento</span><strong style={{ fontSize: 17 }}>{moeda(servico.preco_centavos)}</strong></div>
-                      {sinalPrevisao > 0 && <p className="muted" style={{ fontSize: 11, marginTop: 8 }}>Este serviço pede um sinal de {moeda(sinalPrevisao)} para reservar o horário. O pagamento via Pix será solicitado na próxima etapa do Agendaí (Fase 3); por enquanto, seu horário fica reservado e o negócio confirma com você.</p>}
+                      {sinalPrevisao > 0 && <p className="muted" style={{ fontSize: 11, marginTop: 8 }}>Este serviço pede um sinal de {moeda(sinalPrevisao)} para reservar o horário. Na tela seguinte você paga o sinal via Pix (QR Code ou copia e cola) e o horário é confirmado na hora. A reserva vale por 10 minutos.</p>}
                     </div>
                     <Button className="w-full mt-5" style={{ background: cor, padding: 15 }} disabled={busy} onClick={confirmar}>{busy ? <><Loader2 size={16} className="animate-spin" />Reservando seu horário…</> : <>Confirmar agendamento<Check size={16} /></>}</Button>
                     <p className="muted text-center" style={{ fontSize: 11, marginTop: 10 }}>Cancelamento gratuito até {business.config_cancelamento_limite_horas ?? 4}h antes, pelo link que você receberá.</p>
                   </div>
                 )}
 
-                {step === 5 && resultado && servico && (
+                {step === 5 && resultado?.pagamento && servico && (
+                  <PixEtapa cor={cor} pagamento={resultado.pagamento} token={resultado.token}
+                    consultarStatus={consultarStatus} simularPix={simularPix}
+                    onConfirmado={() => { setResultado((r) => (r ? { ...r, status: 'confirmado' } : r)); setStep(6); void celebrar(); }}
+                    onRefazer={() => { setStep(2); setSlot(null); setResultado(null); }} />
+                )}
+
+                {step === 6 && resultado && servico && (
                   <div className="text-center" style={{ padding: '14px 4px 6px' }}>
                     <svg width="84" height="84" viewBox="0 0 84 84" role="img" aria-label="Agendamento confirmado" style={{ margin: 'auto' }}>
                       <circle cx="42" cy="42" r="38" fill="none" stroke={cor} strokeWidth="4" strokeLinecap="round" strokeDasharray="239" strokeDashoffset="0" style={{ animation: 'drawCircle .6s ease-out' }} />
@@ -228,6 +248,84 @@ export function PublicaUI({ business, services, members, reviews, buscarSlots, a
         </main>
       </div>
     </LazyMotion>
+  );
+}
+
+function PixEtapa({ cor, pagamento, token, consultarStatus, simularPix, onConfirmado, onRefazer }: {
+  cor: string; pagamento: PagamentoPix; token: string;
+  consultarStatus?: UiProps['consultarStatus']; simularPix?: UiProps['simularPix'];
+  onConfirmado: () => void; onRefazer: () => void;
+}) {
+  const [restante, setRestante] = useState(() => Math.max(0, Math.floor((new Date(pagamento.expira_em).getTime() - Date.now()) / 1000)));
+  const [qrUrl, setQrUrl] = useState<string | null>(pagamento.qr_base64 ? `data:image/png;base64,${pagamento.qr_base64}` : null);
+  const [expirou, setExpirou] = useState(false);
+  const [agindo, setAgindo] = useState(false);
+
+  useEffect(() => {
+    if (qrUrl) return;
+    let ativo = true;
+    import('qrcode').then((QR) => QR.toDataURL(pagamento.copia_cola, { width: 240, margin: 1 })).then((url) => { if (ativo) setQrUrl(url); }).catch(() => undefined);
+    return () => { ativo = false; };
+  }, [pagamento.copia_cola, qrUrl]);
+
+  useEffect(() => {
+    const t = setInterval(() => {
+      const seg = Math.max(0, Math.floor((new Date(pagamento.expira_em).getTime() - Date.now()) / 1000));
+      setRestante(seg);
+      if (seg === 0) setExpirou(true);
+    }, 1000);
+    return () => clearInterval(t);
+  }, [pagamento.expira_em]);
+
+  useEffect(() => {
+    if (!consultarStatus || expirou) return;
+    const t = setInterval(async () => {
+      try {
+        const r = await consultarStatus(token);
+        if (r.status === 'confirmado' || r.status === 'concluido') { clearInterval(t); onConfirmado(); }
+        else if (r.status === 'cancelado') { clearInterval(t); setExpirou(true); }
+      } catch { /* tenta de novo no próximo ciclo */ }
+    }, 3000);
+    return () => clearInterval(t);
+  }, [consultarStatus, token, expirou, onConfirmado]);
+
+  const mm = String(Math.floor(restante / 60)).padStart(2, '0');
+  const ss = String(restante % 60).padStart(2, '0');
+
+  if (expirou) {
+    return (
+      <div className="text-center mt-4" style={{ padding: '10px 4px' }}>
+        <Clock3 size={44} className="mx-auto muted" />
+        <h2 className="text-xl font-bold mt-4">O tempo para pagar o sinal acabou ⏰</h2>
+        <p className="muted mt-3" style={{ fontSize: 13, lineHeight: 1.8 }}>A reserva foi liberada para não travar a agenda. Sem problemas: é só escolher outro horário.</p>
+        <Button className="mt-6" style={{ background: cor }} onClick={onRefazer}>Escolher novo horário</Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="text-center mt-4">
+      <span className="badge" style={{ background: `${cor}1a`, color: cor, padding: '7px 12px' }}><QrCode size={13} />Pagamento do sinal via Pix</span>
+      <h2 className="text-xl font-bold mt-4">Falta só o sinal de {moeda(pagamento.valor_centavos)}</h2>
+      <p className="muted mt-2" style={{ fontSize: 12.5, lineHeight: 1.7 }}>Pague no app do seu banco para confirmar o horário.<br />Sua reserva expira em <strong style={{ color: restante < 120 ? '#c04646' : 'var(--foreground)' }}>{mm}:{ss}</strong>.</p>
+      {qrUrl
+        ? <img src={qrUrl} alt="QR Code do Pix para pagar o sinal" width={220} height={220} style={{ margin: '18px auto', borderRadius: 16, border: '1px solid var(--border)', background: '#fff', padding: 8 }} />
+        : <p className="muted row mt-6" style={{ justifyContent: 'center', fontSize: 12 }}><Loader2 size={15} className="animate-spin" />Gerando QR Code…</p>}
+      <div className="card" style={{ padding: 12, maxWidth: 420, margin: 'auto', background: 'var(--hover)' }}>
+        <p style={{ fontSize: 10, wordBreak: 'break-all', textAlign: 'left', lineHeight: 1.6 }} className="muted">{pagamento.copia_cola}</p>
+        <Button variant="outline" size="sm" className="w-full mt-2" onClick={() => { void navigator.clipboard?.writeText(pagamento.copia_cola); toast.success('Código Pix copiado! Cole no app do seu banco.'); }}><Copy size={13} />Copiar código Pix</Button>
+      </div>
+      <p className="muted row mt-5" style={{ justifyContent: 'center', fontSize: 12 }}><Loader2 size={14} className="animate-spin" />Aguardando a confirmação do pagamento… pode deixar esta tela aberta.</p>
+      {pagamento.simulado && simularPix && (
+        <div className="card mt-5" style={{ padding: 14, background: '#fff8e6', borderColor: '#f3e3b3', maxWidth: 420, marginInline: 'auto' }}>
+          <p style={{ fontSize: 11, color: '#7a5d12', fontWeight: 700 }}>🧪 Pix simulado (demonstração — nenhum dinheiro se move)</p>
+          <div className="flex gap-2 mt-3">
+            <Button size="sm" style={{ flex: 1, background: '#2f8c5b' }} disabled={agindo} onClick={async () => { setAgindo(true); await simularPix(token, 'pagar'); onConfirmado(); }}>Já paguei (simular)</Button>
+            <Button size="sm" variant="outline" disabled={agindo} onClick={async () => { setAgindo(true); await simularPix(token, 'expirar'); setExpirou(true); }}>Simular expiração</Button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -312,24 +410,56 @@ export function PublicaDemo({ slug }: { slug: string }) {
     }
     const digitos = apenasDigitos(cliente.whatsapp);
     const whats = digitos.length <= 11 ? `55${digitos}` : digitos;
-    const sinal = servicoAtual.exige_sinal ? Math.round(servicoAtual.preco_centavos * (store.business.config_sinal_percentual ?? 30) / 100) : 0;
+    const plano = planoEfetivo(store.business);
+    if (!dentroDoLimiteMensal(plano, store.appointments, ini)) {
+      throw new Error('Este negócio atingiu o limite de agendamentos do mês. Tente no próximo mês ou fale pelo WhatsApp.');
+    }
+    const clienteExistente = store.clients.find((c) => c.whatsapp === whats);
+    const sinal = calcularSinal({
+      plano, preco_centavos: servicoAtual.preco_centavos, percentual: store.business.config_sinal_percentual ?? 30,
+      servicoExige: servicoAtual.exige_sinal, faltasCliente: clienteExistente?.total_faltas ?? 0,
+      faltasParaSinal: store.business.config_faltas_sinal_obrigatorio ?? null,
+    });
     const token = novoToken();
+    const agendamentoId = crypto.randomUUID();
+    const pagamentoId = crypto.randomUUID();
+    const expiraEm = new Date(Date.now() + 10 * 60_000).toISOString();
+    const copiaCola = gerarCopiaEColaSimulada(sinal, pagamentoId);
     setStore((s) => {
       const existente = s.clients.find((c) => c.whatsapp === whats);
       const clienteId = existente?.id ?? crypto.randomUUID();
       const clients = existente
         ? s.clients.map((c) => c.id === clienteId ? { ...c, nome: cliente.nome, email: cliente.email || c.email } : c)
         : [...s.clients, { id: clienteId, nome: cliente.nome, whatsapp: whats, email: cliente.email, observacoes: '', total_agendamentos: 0, total_faltas: 0, created_at: new Date().toISOString() }];
-      const ag: Appointment = { id: crypto.randomUUID(), cliente_id: clienteId, membro_id: escolhido.membro_id, servico_id: servicoId, inicio_ts: ini.toISOString(), fim_ts: fim.toISOString(), status: sinal > 0 ? 'pendente_pagamento' : 'confirmado', origem: 'pagina_publica', preco_centavos: servicoAtual.preco_centavos, sinal_centavos: sinal, token_publico: token, observacoes: cliente.observacoes };
-      return { ...s, clients, appointments: [...s.appointments, ag] };
+      const ag: Appointment = { id: agendamentoId, cliente_id: clienteId, membro_id: escolhido.membro_id, servico_id: servicoId, inicio_ts: ini.toISOString(), fim_ts: fim.toISOString(), status: sinal > 0 ? 'pendente_pagamento' : 'confirmado', origem: 'pagina_publica', preco_centavos: servicoAtual.preco_centavos, sinal_centavos: sinal, token_publico: token, observacoes: cliente.observacoes, reserva_expira_em: sinal > 0 ? expiraEm : null };
+      const payments = sinal > 0
+        ? [...(s.payments ?? []), { id: pagamentoId, agendamento_id: agendamentoId, tipo: 'sinal' as const, metodo: 'pix' as const, valor_centavos: sinal, status: 'pendente' as const, provider: 'simulado', provider_id: `sim-${pagamentoId}`, pix_copia_cola: copiaCola, expira_em: expiraEm, created_at: new Date().toISOString() }]
+        : s.payments ?? [];
+      return { ...s, clients, appointments: [...s.appointments, ag], payments };
     });
-    return { token, status: sinal > 0 ? 'pendente_pagamento' : 'confirmado', sinal_centavos: sinal, preco_centavos: servicoAtual.preco_centavos, membro_id: escolhido.membro_id, inicio: ini.toISOString(), fim: fim.toISOString() };
+    return { id: agendamentoId, token, status: sinal > 0 ? 'pendente_pagamento' : 'confirmado', sinal_centavos: sinal, preco_centavos: servicoAtual.preco_centavos, membro_id: escolhido.membro_id, inicio: ini.toISOString(), fim: fim.toISOString(), pagamento: sinal > 0 ? { id: pagamentoId, copia_cola: copiaCola, qr_base64: null, expira_em: expiraEm, valor_centavos: sinal, simulado: true } : undefined };
   };
 
   if (ready && slug !== store.business.slug) {
     return <main className="min-h-screen grid place-items-center p-8"><div className="text-center"><h1 className="text-2xl font-bold">Negócio não encontrado 😕</h1><p className="muted my-4">Confira o endereço. Na demonstração, o negócio ativo é <strong>{store.business.nome}</strong>.</p><Link className="text-indigo-500 font-semibold" href={`/${store.business.slug}`}>Ir para /{store.business.slug} →</Link></div></main>;
   }
-  return <PublicaUI business={store.business} services={store.services} members={store.members} reviews={store.reviews} buscarSlots={buscarSlots} agendar={agendar} />;
+  const consultarStatus: UiProps['consultarStatus'] = async (token) => ({
+    status: store.appointments.find((a) => a.token_publico === token)?.status ?? 'cancelado',
+  });
+  const simularPix: UiProps['simularPix'] = async (token, acao) => {
+    setStore((s) => {
+      const ag = s.appointments.find((a) => a.token_publico === token);
+      if (!ag) return s;
+      return {
+        ...s,
+        appointments: s.appointments.map((a) => a.id === ag.id ? { ...a, status: acao === 'pagar' ? 'confirmado' as const : 'cancelado' as const, reserva_expira_em: null } : a),
+        payments: (s.payments ?? []).map((pg) => pg.agendamento_id === ag.id && pg.status === 'pendente'
+          ? { ...pg, status: acao === 'pagar' ? 'pago' as const : 'expirado' as const, pago_em: acao === 'pagar' ? new Date().toISOString() : pg.pago_em }
+          : pg),
+      };
+    });
+  };
+  return <PublicaUI business={store.business} services={store.services} members={store.members} reviews={store.reviews} buscarSlots={buscarSlots} agendar={agendar} consultarStatus={consultarStatus} simularPix={simularPix} />;
 }
 
 /* ── Modo real (RPCs do Supabase) ─────────────────────────────────────────── */
@@ -357,10 +487,22 @@ export function PublicaLive({ data }: { data: NegocioPublico }) {
 
   const agendar: UiProps['agendar'] = async ({ servicoId, membroId, inicio, cliente }) => {
     const res = await fetch('/api/publico/agendar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slug: data.slug, servico_id: servicoId, membro_id: membroId, inicio, nome: cliente.nome, whatsapp: cliente.whatsapp, email: cliente.email, observacoes: cliente.observacoes, consentimento: cliente.consentimento }) });
-    const json: { agendamento?: ResultadoAgendar & { inicio: string }; error?: string } = await res.json();
+    const json: { agendamento?: ResultadoAgendar; error?: string } = await res.json();
     if (!res.ok || !json.agendamento) throw new Error(json.error ?? 'Não foi possível agendar.');
-    return json.agendamento;
+    const r = json.agendamento;
+    if (r.status === 'pendente_pagamento' && r.id) {
+      const resPix = await fetch('/api/publico/pix', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: r.token, agendamento_id: r.id }) });
+      const pix: { pagamento?: PagamentoPix; error?: string } = await resPix.json();
+      if (!resPix.ok || !pix.pagamento) throw new Error(pix.error ?? 'Não foi possível gerar o Pix do sinal.');
+      return { ...r, pagamento: pix.pagamento };
+    }
+    return r;
   };
 
-  return <PublicaUI business={business} services={services} members={members} reviews={reviews} buscarSlots={buscarSlots} agendar={agendar} />;
+  const consultarStatus: UiProps['consultarStatus'] = async (token) => {
+    const res = await fetch(`/api/publico/pix?token=${encodeURIComponent(token)}`);
+    const json: { status?: string } = await res.json();
+    return { status: json.status ?? 'pendente_pagamento' };
+  };
+  return <PublicaUI business={business} services={services} members={members} reviews={reviews} buscarSlots={buscarSlots} agendar={agendar} consultarStatus={consultarStatus} />;
 }

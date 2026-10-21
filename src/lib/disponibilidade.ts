@@ -56,7 +56,7 @@ export function gerarSlots(p: ParametrosSlots): Slot[] {
       if (bloqueado) continue;
       const conflito = p.appointments.some((a) =>
         a.membro_id === h.membro_id &&
-        (a.status === 'confirmado' || a.status === 'pendente_pagamento') &&
+        (a.status === 'confirmado' || (a.status === 'pendente_pagamento' && (!a.reserva_expira_em || new Date(a.reserva_expira_em) > agora))) &&
         sobrepoe(inicio, fim, new Date(a.inicio_ts), new Date(a.fim_ts)));
       if (conflito) continue;
       slots.push({ membro_id: h.membro_id, inicio, fim });
@@ -76,7 +76,7 @@ export function encontrarConflito(
   return appointments.find((a) =>
     a.id !== candidato.ignorarId &&
     a.membro_id === candidato.membro_id &&
-    (a.status === 'confirmado' || a.status === 'pendente_pagamento') &&
+    (a.status === 'confirmado' || (a.status === 'pendente_pagamento' && (!a.reserva_expira_em || new Date(a.reserva_expira_em) > new Date()))) &&
     sobrepoe(candidato.inicio, candidato.fim, new Date(a.inicio_ts), new Date(a.fim_ts)));
 }
 

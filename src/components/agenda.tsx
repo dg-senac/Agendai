@@ -70,7 +70,11 @@ export function AgendaPanel({ store, setStore, live, persist }: Props) {
           ? { ...c, total_agendamentos: c.total_agendamentos + 1, total_faltas: c.total_faltas + (ag.status === 'faltou' ? 1 : 0) }
           : c);
       }
-      return { ...s, clients, appointments: s.appointments.map((a) => (a.id === ag.id ? ag : a)) };
+      // Negócio cancelou → estorno automático do sinal pago (regra da Fase 3).
+      const payments = ag.status === 'cancelado' && anterior && anterior.status !== 'cancelado'
+        ? (s.payments ?? []).map((pg) => pg.agendamento_id === ag.id && pg.tipo === 'sinal' && pg.status === 'pago' ? { ...pg, status: 'estornado' as const } : pg)
+        : s.payments;
+      return { ...s, clients, payments, appointments: s.appointments.map((a) => (a.id === ag.id ? ag : a)) };
     });
     return true;
   }

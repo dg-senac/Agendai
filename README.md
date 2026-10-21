@@ -8,7 +8,7 @@ Plataforma de agendamento online com cobrança via Pix para pequenos negócios b
 |---|---|---|
 | 1 – Fundação | Setup, design system/tema, SQL completo com RLS, autenticação, onboarding, CRUD de serviços/equipe/horários | 🟡 Código pronto; falta conectar um projeto Supabase dedicado |
 | 2 – Núcleo | Disponibilidade, página pública + fluxo de agendamento, agenda do painel, clientes | 🟡 Pronta em modo demonstração; caminho real (RPCs/APIs) implementado, aguardando Supabase dedicado |
-| 3 – Dinheiro | Pix (Mercado Pago), webhooks, financeiro, assinaturas e limites por plano | ⏳ |
+| 3 – Dinheiro | Pix (Mercado Pago), webhooks, financeiro, assinaturas e limites por plano | 🟡 Pronta em modo demonstração (Pix simulado); integração MP real implementada, aguardando credenciais + Supabase |
 | 4 – Automação | E-mails, lembretes (pg_cron), avaliações, .ics, trial/inadimplência | ⏳ |
 | 5 – Crescimento | Landing page (GSAP/Lenis), relatórios, SEO, PWA, super admin, Ctrl+K | ⏳ |
 | 6 – Qualidade | Testes E2E, Sentry, auditoria de performance e segurança | ⏳ |
@@ -60,6 +60,14 @@ Para virar **super admin** (Fase 5): no painel do Supabase Auth, edite seu usuá
 | `npm test` | Vitest (testes unitários em `tests/`) |
 
 CI no GitHub Actions (`.github/workflows/ci.yml`): lint, typecheck, testes e build a cada push/PR.
+
+## Testar a Fase 3 (dinheiro — demonstração)
+
+1. Em `/studio-beleza-natural`, agende **Coloração completa** (exige sinal): ao confirmar, aparece a tela do Pix com QR Code, copia e cola e contagem de 10:00. Use **"Já paguei (simular)"** para confirmar ou **"Simular expiração"** para ver o horário ser liberado.
+2. Em `/painel/financeiro`: filtros por período/status, totais, **Registrar recebimento** manual e o botão de CSV bloqueado (Premium).
+3. Em `/painel/configuracoes`: troque o plano para **Premium** e o CSV libera; mude para **Grátis** e tente adicionar um 2º profissional (bloqueado) ou agendar coloração (sem sinal). Simule **inadimplência** e veja o banner de carência.
+4. Cancele (pelo link do cliente ou na agenda) um agendamento com sinal pago e confira o **estorno** no Financeiro.
+5. Para resetar a demonstração, apague a chave `agendai-demo-v3` do localStorage.
 
 ## Testar a Fase 2 (demonstração)
 

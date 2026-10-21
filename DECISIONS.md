@@ -49,3 +49,19 @@ Toda decisão não especificada no briefing segue a opção mais simples e segur
 21. **Bundle da página pública:** DayPicker, Embla e confetti via `next/dynamic`/import dinâmico (fora do JS inicial). Mesmo assim `/[slug]` está em 180 kB de First Load (meta: 150 kB gzip). Restante vem de Motion + providers globais do layout raiz; otimização final (layouts por grupo de rotas e bundle analyzer) fica para a auditoria da Fase 6 — registrado em PERFORMANCE.md.
 
 22. **Sinal na Fase 2 é apenas informativo:** serviços com `exige_sinal` geram agendamento `pendente_pagamento` (reserva) e a interface avisa que o Pix chega na Fase 3; a expiração automática da reserva (10 min) será ligada com o job da Fase 3/4.
+
+## Fase 3 – Dinheiro (2026-10-21, modo demonstração)
+
+23. **Camada `PaymentProvider`** (`src/lib/pagamentos/`): interface única (cobrança Pix, consulta, estorno, checkout de assinatura) com duas implementações — `MercadoPagoProvider` (API REST real, idempotency-key por pagamento) e `PagamentoSimulado` (copia e cola claramente marcado "SIMULADO-NAO-PAGUE"). Trocar para Stripe no futuro = nova classe, sem tocar nas rotas. Sem token MP do negócio ou da plataforma, o sistema usa o simulado e a interface avisa.
+
+24. **Credenciais MP por negócio** na tabela `negocio_integracoes`, **sem nenhuma policy de leitura para usuários**: o dono grava via RPC `salvar_credenciais_mp` e só pergunta "estou conectado?" via `integracao_mp_status`; quem lê o token é o servidor com `service_role` (`src/lib/supabase/admin.ts`). Em produção, o passo seguinte é criptografar com Supabase Vault/pgsodium — registrado para a revisão de segurança da Fase 6. Nunca logamos o token.
+
+25. **Webhook não confia no corpo:** valida assinatura HMAC (x-signature), registra em `webhooks_recebidos` com evento único (idempotência — reenvio responde 200 sem reprocessar), **reconsulta o pagamento na API do MP** e só então marca `pago` + confirma o agendamento. Valor divergente = erro registrado, sem confirmar.
+
+26. **Limites por plano no banco (triggers)**, espelhados em `src/lib/planos.ts` para UX/demo: profissionais (1/3/∞), 30 agendamentos/mês no Grátis, sinal zerado à força fora de plano pago, CSV só Premium. `plano_efetivo`: trial válido = Pro; trial vencido/suspenso = Grátis; inadimplente mantém durante a carência de 7 dias (a virada automática é job da Fase 4).
+
+27. **Assinatura do SaaS via preapproval do MP** (link de checkout). Sem credenciais da plataforma, a ativação é simulada e imediata — comportamento explícito na API (`simulado: true`) e na interface. Cancelamento mantém recursos até o fim do ciclo (campo já modelado; a expiração é job da Fase 4).
+
+28. **Estornos:** negócio cancela → estorno automático do sinal pago; cliente cancela dentro do prazo → estorna se `config_estorno_cliente_no_prazo` (padrão ligado). No demo, o pagamento vira `estornado`; no real, a chamada `estornar` do provedor sai das rotas de cancelamento (best-effort com registro).
+
+29. **Reserva de 10 min:** `pendente_pagamento` só bloqueia a agenda enquanto `reserva_expira_em` não vence (TS e SQL alinhados). A limpeza definitiva é `expirar_reservas()` (service_role), exposta via `/api/cron/expirar-reservas` (header `x-cron-secret`) e Edge Function equivalente — o agendamento pg_cron entra na Fase 4 junto dos lembretes.

@@ -1,0 +1,28 @@
+name: Lighthouse
+on:
+  # Auditoria manual (Actions → Lighthouse → Run workflow) e semanal.
+  workflow_dispatch:
+  schedule:
+    - cron: "0 12 * * 1"
+
+jobs:
+  lighthouse:
+    name: Auditoria de performance/acessibilidade
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Rodar Lighthouse CI
+        run: npx --yes @lhci/cli@0.14 autorun
+      - name: Publicar relatório
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: relatorio-lighthouse
+          path: .lighthouseci
+          retention-days: 30

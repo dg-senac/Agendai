@@ -1,0 +1,1 @@
+export default function Loading(){return <div className="max-w-6xl mx-auto p-12" role="status"><p className="muted mb-6">Carregando seu espaço…</p><div className="grid grid-cols-2 gap-6 animate-pulse">{[1,2,3,4].map(i=><div key={i} className="card h-40 bg-indigo-50"/>)}</div></div>;}

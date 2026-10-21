@@ -1,0 +1,16 @@
+-- Teste manual de isolamento multi-tenant (rode no SQL Editor do Supabase APÓS
+-- o schema_completo.sql, com dois usuários criados no Auth e vinculados a
+-- negócios diferentes via onboarding). Substitua os UUIDs abaixo.
+-- Esperado: o usuário A nunca enxerga serviços/clientes do negócio B.
+--
+-- begin;
+--   set local role authenticated;
+--   select set_config('request.jwt.claims', '{"sub":"<UUID_USUARIO_A>","role":"authenticated"}', true);
+--   select count(*) from public.servicos;        -- só serviços do negócio A
+--   select count(*) from public.negocios;        -- 1 (o próprio)
+--   select public.auth_negocio_id();           -- negocio de A
+-- rollback;
+-- Repita com o usuário B e compare. Também teste como anon:
+--   set local role anon; select * from public.servicos; -- deve falhar (sem grant)
+--   select public.negocio_publico('studio-beleza-natural'); -- deve funcionar
+select 'Leia as instruções comentadas neste arquivo.' as instrucao;

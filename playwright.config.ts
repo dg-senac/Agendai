@@ -11,7 +11,7 @@ export default defineConfig({
   expect: { timeout: 10_000 },
   fullyParallel: true,
   retries: process.env.CI ? 1 : 0,
-  reporter: process.env.CI ? [['list',], ['html', { open: 'never', outputFolder: 'playwright-report' }]] : 'list',
+  reporter: process.env.CI ? [['list'], ['html', { open: 'never', outputFolder: 'playwright-report' }], ['json', { outputFile: 'resultado-e2e.json' }]] : 'list',
   use: {
     baseURL: 'http://127.0.0.1:3100',
     locale: 'pt-BR',

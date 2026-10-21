@@ -23,6 +23,9 @@ jobs:
     name: Testes E2E (Playwright)
     needs: qualidade
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -34,6 +37,37 @@ jobs:
         run: npx playwright install --with-deps chromium
       - run: npm run build
       - run: npm run test:e2e
+      - name: Diagnóstico no PR (em caso de falha)
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR=$(gh pr list --head "${{ github.head_ref || github.ref_name }}" --json number --jq '.[0].number // empty')
+          if [ -n "$PR" ] && [ -f resultado-e2e.json ]; then
+            RESUMO=$(python3 - <<'EOF'
+          import json
+          d = json.load(open('resultado-e2e.json'))
+          falhas = []
+          def varrer(suite, caminho=''):
+              titulo = suite.get('title', '')
+              for spec in suite.get('specs', []):
+                  for t in spec.get('tests', []):
+                      if t.get('status') in ('unexpected', 'flaky'):
+                          erros = []
+                          for r in t.get('results', []):
+                              e = (r.get('error') or {}).get('message', '')
+                              if e: erros.append(e.strip()[:700])
+                          falhas.append(f"### ❌ {caminho}{titulo} › {spec.get('title','')} [{t.get('projectName','')}]\n\n```\n{(erros[0] if erros else 'sem mensagem')}\n```")
+              for filho in suite.get('suites', []):
+                  varrer(filho, caminho + (titulo + ' › ' if titulo else ''))
+          for s in d.get('suites', []): varrer(s)
+          stats = d.get('stats', {})
+          print(f"## 🧪 Diagnóstico E2E — {stats.get('unexpected', 0)} falha(s) em {stats.get('expected', 0) + stats.get('unexpected', 0) + stats.get('flaky', 0)} testes\n")
+          print('\n\n'.join(falhas) if falhas else 'Nenhum detalhe no JSON.')
+          EOF
+            )
+            gh pr comment "$PR" --body "$RESUMO (run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+          fi
       - name: Relatório dos testes (em caso de falha)
         if: failure()
         uses: actions/upload-artifact@v4

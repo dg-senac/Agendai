@@ -5,7 +5,7 @@ const SLUG = '/studio-beleza-natural';
 /** Escolhe o primeiro dia com horários livres (pula hoje e dias sem expediente). */
 async function escolherDiaEHora(page: Page): Promise<string> {
   const horarios = page.getByRole('button', { name: /^\d{2}:\d{2}$/ });
-  const dias = page.locator('.pub-calendario button:not([disabled])');
+  const dias = page.locator('.pub-calendario button.rdp-day_button:not([disabled])').filter({ hasText: /^\d{1,2}$/ });
   const totalDias = await dias.count();
   for (let i = 1; i < Math.min(totalDias, 14); i++) {
     await dias.nth(i).click();
@@ -69,7 +69,7 @@ test.describe('Página pública de agendamento (demonstração)', () => {
     await page.goto(SLUG);
     await page.getByRole('button', { name: /Coloração completa/ }).click();
     await page.getByRole('button', { name: /Qualquer profissional/ }).click();
-    const dias = page.locator('.pub-calendario button:not([disabled])');
+    const dias = page.locator('.pub-calendario button.rdp-day_button:not([disabled])').filter({ hasText: /^\d{1,2}$/ });
     let reapareceu = false;
     for (let i = 0; i < Math.min(await dias.count(), 10) && !reapareceu; i++) {
       await dias.nth(i).click();
@@ -89,7 +89,7 @@ test.describe('Página pública de agendamento (demonstração)', () => {
     await page.goto(SLUG);
     await page.getByRole('button', { name: /Corte feminino/ }).click();
     await page.getByRole('button', { name: /Qualquer profissional/ }).click();
-    const dias = page.locator('.pub-calendario button:not([disabled])');
+    const dias = page.locator('.pub-calendario button.rdp-day_button:not([disabled])').filter({ hasText: /^\d{1,2}$/ });
     let aindaAparece = false;
     // O dia reservado foi o primeiro com vagas a partir de amanhã:
     // varremos os dias próximos procurando o vazamento.

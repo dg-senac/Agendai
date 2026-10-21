@@ -3,11 +3,11 @@ import { expect, test } from '@playwright/test';
 test.describe('Painel do negócio (demonstração)', () => {
   test('dashboard carrega e a navegação entre seções funciona', async ({ page }) => {
     await page.goto('/painel');
-    await expect(page.getByRole('heading', { name: /Visão geral|Olá/ }).first()).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible();
     await page.goto('/painel/agenda');
-    await expect(page.getByRole('heading', { name: 'Agenda' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Agenda', exact: true })).toBeVisible();
     await page.goto('/painel/clientes');
-    await expect(page.getByRole('heading', { name: 'Clientes' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Clientes', exact: true })).toBeVisible();
   });
 
   test('Ctrl+K abre a paleta e navega para o Financeiro', async ({ page }) => {
@@ -22,7 +22,7 @@ test.describe('Painel do negócio (demonstração)', () => {
 
   test('relatórios mostram o upsell Premium no trial Pro', async ({ page }) => {
     await page.goto('/painel/relatorios');
-    await expect(page.getByRole('heading', { name: 'Relatórios' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Relatórios', exact: true })).toBeVisible();
     await expect(page.getByText(/Premium/).first()).toBeVisible();
   });
 

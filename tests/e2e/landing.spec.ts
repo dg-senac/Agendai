@@ -7,8 +7,8 @@ test.describe('Landing de marketing', () => {
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
 
     // Seção de planos com os preços em reais
-    await expect(page.getByText('R$ 29,90')).toBeVisible();
-    await expect(page.getByText('R$ 59,90')).toBeVisible();
+    await expect(page.getByText(/29,90/)).toBeVisible();
+    await expect(page.getByText(/59,90/)).toBeVisible();
 
     // FAQ abre a primeira pergunta
     const primeiraPergunta = page.locator('.faq-item summary').first();

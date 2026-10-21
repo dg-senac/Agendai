@@ -45,3 +45,13 @@ Otimizações aplicadas: DayPicker + locale pt-BR, Embla e canvas-confetti fora 
 | APIs de pagamento/webhook/cron | server-only (0 no cliente) |
 
 A biblioteca `qrcode` entra **só sob demanda** na tela do Pix (import dinâmico) e apenas quando o provedor não devolve QR em base64. A pendência dos 150 kB permanece para a Fase 6.
+
+## Fase 4 — build de produção (2026-10-21)
+
+| Rota | First Load JS |
+|---|---|
+| `/[slug]` | ~183 kB ⚠️ (inalterado) |
+| `/painel` (+ avaliações/notificações via dynamic) | 174 kB |
+| APIs de cron/avaliações/convites | server-only |
+
+Resend e React Email vivem **só no servidor** (worker) — zero impacto no bundle do navegador.

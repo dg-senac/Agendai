@@ -9,7 +9,7 @@ Plataforma de agendamento online com cobrança via Pix para pequenos negócios b
 | 1 – Fundação | Setup, design system/tema, SQL completo com RLS, autenticação, onboarding, CRUD de serviços/equipe/horários | 🟡 Código pronto; falta conectar um projeto Supabase dedicado |
 | 2 – Núcleo | Disponibilidade, página pública + fluxo de agendamento, agenda do painel, clientes | 🟡 Pronta em modo demonstração; caminho real (RPCs/APIs) implementado, aguardando Supabase dedicado |
 | 3 – Dinheiro | Pix (Mercado Pago), webhooks, financeiro, assinaturas e limites por plano | 🟡 Pronta em modo demonstração (Pix simulado); integração MP real implementada, aguardando credenciais + Supabase |
-| 4 – Automação | E-mails, lembretes (pg_cron), avaliações, .ics, trial/inadimplência | ⏳ |
+| 4 – Automação | E-mails, lembretes (pg_cron), avaliações, .ics, trial/inadimplência | 🟡 Pronta em modo demonstração (e-mails simulados); Resend/pg_cron implementados, aguardando chaves + Supabase |
 | 5 – Crescimento | Landing page (GSAP/Lenis), relatórios, SEO, PWA, super admin, Ctrl+K | ⏳ |
 | 6 – Qualidade | Testes E2E, Sentry, auditoria de performance e segurança | ⏳ |
 
@@ -60,6 +60,14 @@ Para virar **super admin** (Fase 5): no painel do Supabase Auth, edite seu usuá
 | `npm test` | Vitest (testes unitários em `tests/`) |
 
 CI no GitHub Actions (`.github/workflows/ci.yml`): lint, typecheck, testes e build a cada push/PR.
+
+## Testar a Fase 4 (automação — demonstração)
+
+1. Faça um agendamento na página pública: no dashboard, o card **"Lembretes & avisos"** mostra a confirmação como "Simulada" e os lembretes agendados; quando um lembrete de WhatsApp vence, envie com 1 clique.
+2. Na agenda, **conclua** um atendimento e abra o link do cliente: formulário de **avaliação** (estrelas + comentário). Depois, em `/painel/avaliacoes`, responda e publique — ela aparece na página pública.
+3. Em Configurações → Plano, simule o status da assinatura e ajuste datas pelo DevTools (`agendai-demo-v3`) para ver trial vencendo → Grátis e a carência de 7 dias.
+4. Adicione um profissional com e-mail em `/painel/equipe` (no modo real, dispara o convite do Supabase Auth).
+5. Modo real: defina `RESEND_API_KEY`, `EMAIL_FROM` e `CRON_SECRET`, rode a migration 0004 (pg_cron é opcional) e agende `POST /api/cron/jobs` a cada minuto (Edge Function `processar-notificacoes` incluída).
 
 ## Testar a Fase 3 (dinheiro — demonstração)
 

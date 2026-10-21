@@ -12,6 +12,7 @@ import { useDemoStore } from '@/components/use-demo-store';
 import { apenasDigitos, iniciais, novoToken, type Appointment, type Business, type Member, type Review, type Service } from '@/lib/demo';
 import { encontrarConflito, formatarHora, gerarIcs, gerarSlots, membroAtende } from '@/lib/disponibilidade';
 import { calcularSinal, dentroDoLimiteMensal, planoEfetivo } from '@/lib/planos';
+import { notificacoesDoAgendamento } from '@/lib/automacao';
 import { gerarCopiaEColaSimulada } from '@/lib/pagamentos/simulado';
 import { moeda } from '@/lib/utils';
 
@@ -435,7 +436,16 @@ export function PublicaDemo({ slug }: { slug: string }) {
       const payments = sinal > 0
         ? [...(s.payments ?? []), { id: pagamentoId, agendamento_id: agendamentoId, tipo: 'sinal' as const, metodo: 'pix' as const, valor_centavos: sinal, status: 'pendente' as const, provider: 'simulado', provider_id: `sim-${pagamentoId}`, pix_copia_cola: copiaCola, expira_em: expiraEm, created_at: new Date().toISOString() }]
         : s.payments ?? [];
-      return { ...s, clients, appointments: [...s.appointments, ag], payments };
+      const donoEmail = 'dono@exemplo.com.br';
+      const novas = notificacoesDoAgendamento(ag, { nome: cliente.nome, whatsapp: whats, email: cliente.email } as never)
+        .map((n) => ({ ...n, id: crypto.randomUUID(), status: n.status ?? 'pendente' as const }));
+      // Sem sinal: confirmação imediata entra na fila; com sinal, só após o Pix.
+      const notifications = [
+        ...(s.notifications ?? []),
+        ...(sinal > 0 ? [] : novas),
+        { id: crypto.randomUUID(), agendamento_id: ag.id, canal: 'email' as const, tipo: 'novo_agendamento' as const, status: 'enviada' as const, destinatario: donoEmail, agendada_para: new Date().toISOString(), enviada_em: new Date().toISOString() },
+      ];
+      return { ...s, clients, appointments: [...s.appointments, ag], payments, notifications };
     });
     return { id: agendamentoId, token, status: sinal > 0 ? 'pendente_pagamento' : 'confirmado', sinal_centavos: sinal, preco_centavos: servicoAtual.preco_centavos, membro_id: escolhido.membro_id, inicio: ini.toISOString(), fim: fim.toISOString(), pagamento: sinal > 0 ? { id: pagamentoId, copia_cola: copiaCola, qr_base64: null, expira_em: expiraEm, valor_centavos: sinal, simulado: true } : undefined };
   };
@@ -450,16 +460,21 @@ export function PublicaDemo({ slug }: { slug: string }) {
     setStore((s) => {
       const ag = s.appointments.find((a) => a.token_publico === token);
       if (!ag) return s;
+      const clienteDoAg = s.clients.find((c) => c.id === ag.cliente_id);
+      const novas = acao === 'pagar' && clienteDoAg
+        ? notificacoesDoAgendamento(ag, clienteDoAg).map((n) => ({ ...n, id: crypto.randomUUID(), status: n.status ?? 'pendente' as const }))
+        : [];
       return {
         ...s,
         appointments: s.appointments.map((a) => a.id === ag.id ? { ...a, status: acao === 'pagar' ? 'confirmado' as const : 'cancelado' as const, reserva_expira_em: null } : a),
         payments: (s.payments ?? []).map((pg) => pg.agendamento_id === ag.id && pg.status === 'pendente'
           ? { ...pg, status: acao === 'pagar' ? 'pago' as const : 'expirado' as const, pago_em: acao === 'pagar' ? new Date().toISOString() : pg.pago_em }
           : pg),
+        notifications: [...(s.notifications ?? []), ...novas],
       };
     });
   };
-  return <PublicaUI business={store.business} services={store.services} members={store.members} reviews={store.reviews} buscarSlots={buscarSlots} agendar={agendar} consultarStatus={consultarStatus} simularPix={simularPix} />;
+  return <PublicaUI business={store.business} services={store.services} members={store.members} reviews={store.reviews.filter((r) => r.publica !== false)} buscarSlots={buscarSlots} agendar={agendar} consultarStatus={consultarStatus} simularPix={simularPix} />;
 }
 
 /* ── Modo real (RPCs do Supabase) ─────────────────────────────────────────── */

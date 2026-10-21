@@ -65,3 +65,19 @@ Toda decisão não especificada no briefing segue a opção mais simples e segur
 28. **Estornos:** negócio cancela → estorno automático do sinal pago; cliente cancela dentro do prazo → estorna se `config_estorno_cliente_no_prazo` (padrão ligado). No demo, o pagamento vira `estornado`; no real, a chamada `estornar` do provedor sai das rotas de cancelamento (best-effort com registro).
 
 29. **Reserva de 10 min:** `pendente_pagamento` só bloqueia a agenda enquanto `reserva_expira_em` não vence (TS e SQL alinhados). A limpeza definitiva é `expirar_reservas()` (service_role), exposta via `/api/cron/expirar-reservas` (header `x-cron-secret`) e Edge Function equivalente — o agendamento pg_cron entra na Fase 4 junto dos lembretes.
+
+## Fase 4 – Automação (2026-10-21, modo demonstração)
+
+30. **Fila de notificações no banco, envio no app:** SQL cria as linhas (trigger de confirmação/cancelamento na hora + `enfileirar_notificacoes` por janela para lembretes/pós-atendimento) e o worker `src/server/notificacoes.ts` envia com **retry e backoff de 5/15/45 min** (depois marca `falhou`). Índice único `(agendamento_id, tipo, canal)` torna o enfileiramento idempotente — pode rodar todo minuto sem duplicar.
+
+31. **pg_cron seguro e opcional:** a migration tenta habilitar/agendar os jobs SQL dentro de um `DO` com tratamento de exceção — se a extensão não estiver disponível, nada quebra e a rota `/api/cron/jobs` (protegida por `x-cron-secret`) faz o mesmo trabalho via Edge Function `processar-notificacoes` ou cron externo. O envio de e-mail nunca acontece dentro do SQL.
+
+32. **E-mail com provedor trocável:** `enviarEmail` usa **Resend** com `RESEND_API_KEY`; sem chave, simula com log estruturado e a notificação é marcada como enviada no demo (selo "Simulada" no painel). Templates React Email em pt-BR em `emails/`; confirmação leva o `.ics` anexo (gerado pela mesma função testada da Fase 2).
+
+33. **Lembrete de WhatsApp é "1 clique do dono"**, não envio automático: a fila gera a linha `whatsapp_link`, o painel mostra o botão que abre `wa.me` com a mensagem pronta e marca como enviada. Envio automático exigiria a API oficial do WhatsApp (custo/aprovação) — fora do escopo; decisão alinhada ao briefing §5.5.
+
+34. **Avaliações nascem privadas:** o cliente avalia pelo token após `concluido` (RPC `avaliar_agendamento`, uma por atendimento); o dono responde e decide publicar. A página pública só mostra as públicas.
+
+35. **Convite de equipe pelo Supabase Auth** (`inviteUserByEmail` via service_role): se o e-mail já tiver conta, vinculamos o usuário existente em vez de falhar. Na demonstração, o e-mail é apenas salvo no cadastro (com a mensagem de simulação no fluxo real avisando o contrário).
+
+36. **Ciclo de assinatura em duas implementações gêmeas e testadas:** `processar_ciclo_assinaturas()` (SQL) e `aplicarCicloAssinatura()` (TS, demo) — trial vencido → Grátis, cobrança vencida → inadimplente com `carencia_termina_em` (7 dias), carência vencida → downgrade. O aviso de trial (3 dias) entra na mesma fila de e-mails.

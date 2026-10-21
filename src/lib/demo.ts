@@ -1,7 +1,7 @@
 // Modelo de dados compartilhado entre o modo demonstração (localStorage) e o
 // modo real (Supabase). Os nomes espelham as colunas do banco.
 export type Service = { id: string; nome: string; descricao?: string | null; duracao_minutos: number; preco_centavos: number; exige_sinal: boolean; ativo: boolean };
-export type Member = { id: string; nome: string; papel: 'dono' | 'profissional'; ativo: boolean; foto_url?: string | null; servico_ids: string[] };
+export type Member = { id: string; nome: string; papel: 'dono' | 'profissional'; ativo: boolean; foto_url?: string | null; servico_ids: string[]; email?: string | null };
 export type Schedule = { id: string; membro_id: string; dia_semana: number; inicio: string; fim: string; intervalo_inicio: string | null; intervalo_fim: string | null };
 export type Business = {
   nome: string; slug: string; telefone: string; cidade: string;
@@ -29,8 +29,15 @@ export type Payment = {
   expira_em?: string | null; pago_em?: string | null; created_at: string;
 };
 export type Block = { id: string; membro_id: string; inicio_ts: string; fim_ts: string; motivo: string };
-export type Review = { id: string; nota: number; comentario: string; cliente: string; resposta?: string | null };
-export type Store = { business: Business; services: Service[]; members: Member[]; schedules: Schedule[]; clients: Client[]; appointments: Appointment[]; blocks: Block[]; reviews: Review[]; payments: Payment[] };
+export type Review = { id: string; nota: number; comentario: string; cliente: string; resposta?: string | null; publica?: boolean; agendamento_id?: string | null; created_at?: string };
+export type Notification = {
+  id: string; agendamento_id: string | null;
+  canal: 'email' | 'whatsapp_link';
+  tipo: 'confirmacao' | 'lembrete_24h' | 'lembrete_2h' | 'cancelamento' | 'pos_atendimento' | 'novo_agendamento' | 'trial_acabando' | 'cobranca_falhou';
+  status: 'pendente' | 'enviada' | 'falhou' | 'cancelada';
+  destinatario: string | null; agendada_para: string; enviada_em?: string | null; erro?: string | null;
+};
+export type Store = { business: Business; services: Service[]; members: Member[]; schedules: Schedule[]; clients: Client[]; appointments: Appointment[]; blocks: Block[]; reviews: Review[]; payments: Payment[]; notifications: Notification[] };
 
 export const DEMO_KEY = 'agendai-demo-v3';
 
@@ -84,10 +91,15 @@ export function buildDemoStore(agora = new Date()): Store {
       { id: 'pg-3', agendamento_id: 'ag-2', tipo: 'sinal', metodo: 'pix', valor_centavos: 5400, status: 'pago', provider: 'simulado', created_at: at(-2, 9, 12), pago_em: at(-2, 9, 14) },
       { id: 'pg-4', agendamento_id: null, tipo: 'saldo', metodo: 'cartao', valor_centavos: 12000, status: 'estornado', provider: 'simulado', created_at: at(-6, 11, 0), pago_em: at(-6, 11, 2) },
     ],
+    notifications: [
+      { id: 'nt-1', agendamento_id: 'ag-5', canal: 'email', tipo: 'confirmacao', status: 'enviada', destinatario: 'mariana@example.com', agendada_para: at(-4, 9, 2), enviada_em: at(-4, 9, 2) },
+      { id: 'nt-2', agendamento_id: 'ag-5', canal: 'email', tipo: 'pos_atendimento', status: 'enviada', destinatario: 'mariana@example.com', agendada_para: at(-3, 17, 45), enviada_em: at(-3, 17, 45) },
+    ],
     reviews: [
-      { id: 'av-1', nota: 5, comentario: 'Atendimento impecável, saí renovada! O agendamento online facilitou tudo.', cliente: 'Mariana Costa.' },
-      { id: 'av-2', nota: 5, comentario: 'A Camila Santos entendeu exatamente a cor que eu queria. Recomendo demais.', cliente: 'Beatriz Almeida.' },
-      { id: 'av-3', nota: 4, comentario: 'Ambiente lindo e pontualidade rara de ver. Já virei cliente fiel.', cliente: 'Juliana Ferreira.' },
+      { id: 'av-1', nota: 5, comentario: 'Atendimento impecável, saí renovada! O agendamento online facilitou tudo.', cliente: 'Mariana Costa.', publica: true, agendamento_id: 'ag-5' },
+      { id: 'av-2', nota: 5, comentario: 'A Camila Santos entendeu exatamente a cor que eu queria. Recomendo demais.', cliente: 'Beatriz Almeida.', publica: true },
+      { id: 'av-3', nota: 4, comentario: 'Ambiente lindo e pontualidade rara de ver. Já virei cliente fiel.', cliente: 'Juliana Ferreira.', publica: true },
+      { id: 'av-4', nota: 3, comentario: 'Gostei do corte, mas a espera foi um pouquinho longa.', cliente: 'Carolina Oliveira.', publica: false, resposta: null },
     ],
   };
 }

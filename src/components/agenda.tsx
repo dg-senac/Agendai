@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight, Plus, Ban, X, Clock3, CheckCheck, UserX, Cal
 import { Button } from '@/components/ui/button';
 import { apenasDigitos, iniciais, novoToken, type Appointment, type Store } from '@/lib/demo';
 import { encontrarConflito, formatarHora, gerarSlots, membroAtende, sobrepoe } from '@/lib/disponibilidade';
+import { notificacoesDoAgendamento } from '@/lib/automacao';
 import { moeda } from '@/lib/utils';
 
 export type PersistFn = (collection: 'services' | 'members' | 'schedules' | 'business' | 'clients' | 'blocks' | 'memberServices', payload: unknown, method?: string, id?: string) => Promise<boolean>;
@@ -315,7 +316,11 @@ function NovoAgendamento({ store, setStore, live, fechar }: Omit<Props, 'persist
         }
       }
       const ag: Appointment = { id: crypto.randomUUID(), cliente_id: clienteId, membro_id: membroEfetivo, servico_id: servico.id, inicio_ts: inicio.toISOString(), fim_ts: fim.toISOString(), status: 'confirmado', origem: 'painel', preco_centavos: servico.preco_centavos, sinal_centavos: 0, token_publico: novoToken() };
-      return { ...s, clients, appointments: [...s.appointments, ag] };
+      const clienteAg = clients.find((c) => c.id === clienteId);
+      const notifications = clienteAg
+        ? [...(s.notifications ?? []), ...notificacoesDoAgendamento(ag, clienteAg).map((n) => ({ ...n, id: crypto.randomUUID(), status: n.status ?? 'pendente' as const }))]
+        : s.notifications ?? [];
+      return { ...s, clients, appointments: [...s.appointments, ag], notifications };
     });
     setBusy(false);
     toast.success('Agendamento criado.');

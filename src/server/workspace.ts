@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { configured, supabase } from '@/lib/supabase/server';
-import type { Appointment, Block, Client, Member, Payment, Review, Schedule, Service, Store } from '@/lib/demo';
+import type { Appointment, Block, Client, Member, Notification, Payment, Review, Schedule, Service, Store } from '@/lib/demo';
 
 /** Carrega o workspace do tenant no modo real (RLS filtra por negocio_id). */
 export async function loadWorkspace(): Promise<{ live: false } | { live: true; data: Store }> {
@@ -15,7 +15,7 @@ export async function loadWorkspace(): Promise<{ live: false } | { live: true; d
   if (!me) redirect('/onboarding');
 
   const desde = new Date(Date.now() - 60 * 24 * 3600_000).toISOString();
-  const [negocio, servicos, membros, vinculos, horarios, clientes, agendamentos, bloqueios, avaliacoes, pagamentos, assinatura, mpStatus] = await Promise.all([
+  const [negocio, servicos, membros, vinculos, horarios, clientes, agendamentos, bloqueios, avaliacoes, pagamentos, assinatura, mpStatus, notificacoes] = await Promise.all([
     db.from('negocios').select('nome, slug, telefone, cidade, descricao, endereco, cor_primaria, fuso_horario, plano, status, trial_termina_em, config_antecedencia_minima_horas, config_cancelamento_limite_horas, config_sinal_percentual, config_estorno_cliente_no_prazo, config_faltas_sinal_obrigatorio').eq('id', me.negocio_id).single(),
     db.from('servicos').select('id, nome, descricao, duracao_minutos, preco_centavos, exige_sinal, ativo').is('deleted_at', null).order('nome'),
     db.from('membros').select('id, nome, papel, ativo, foto_url').is('deleted_at', null).order('nome'),
@@ -24,10 +24,11 @@ export async function loadWorkspace(): Promise<{ live: false } | { live: true; d
     db.from('clientes').select('id, nome, whatsapp, email, observacoes, total_agendamentos, total_faltas, created_at').is('deleted_at', null).order('nome'),
     db.from('agendamentos').select('id, cliente_id, membro_id, servico_id, inicio_ts, fim_ts, status, origem, preco_centavos, sinal_centavos, token_publico, observacoes').is('deleted_at', null).gte('inicio_ts', desde).order('inicio_ts'),
     db.from('bloqueios').select('id, membro_id, inicio_ts, fim_ts, motivo'),
-    db.from('avaliacoes').select('id, nota, comentario, resposta').eq('publica', true).order('created_at', { ascending: false }).limit(20),
+    db.from('avaliacoes').select('id, agendamento_id, nota, comentario, resposta, publica, created_at').order('created_at', { ascending: false }).limit(50),
     db.from('pagamentos').select('id, agendamento_id, tipo, metodo, valor_centavos, status, provider, provider_id, pix_copia_cola, expira_em, pago_em, created_at').gte('created_at', desde).order('created_at', { ascending: false }),
     db.from('assinaturas').select('status, proxima_cobranca_em').order('created_at', { ascending: false }).limit(1).maybeSingle(),
     db.rpc('integracao_mp_status'),
+    db.from('notificacoes').select('id, agendamento_id, canal, tipo, status, destinatario, agendada_para, enviada_em, erro').order('agendada_para', { ascending: false }).limit(40),
   ]);
   const falha = [negocio, servicos, membros, horarios, clientes, agendamentos].find((r) => r.error);
   if (falha?.error) throw new Error('Não foi possível carregar os dados do negócio.');
@@ -62,8 +63,13 @@ export async function loadWorkspace(): Promise<{ live: false } | { live: true; d
     clients: ((clientes.data ?? []) as unknown as Client[]).map((c) => ({ ...c, email: c.email ?? '', observacoes: c.observacoes ?? '' })),
     appointments: (agendamentos.data ?? []) as unknown as Appointment[],
     blocks: ((bloqueios.data ?? []) as unknown as Block[]).map((b) => ({ ...b, motivo: b.motivo ?? '' })),
-    reviews: ((avaliacoes.data ?? []) as unknown as Review[]).map((a) => ({ ...a, cliente: 'Cliente' })),
+    reviews: ((avaliacoes.data ?? []) as unknown as Review[]).map((a) => {
+      const ag = (agendamentos.data ?? []).find((x) => x.id === a.agendamento_id);
+      const cli = ag ? (clientes.data ?? []).find((c) => c.id === (ag as { cliente_id: string }).cliente_id) as { nome: string } | undefined : undefined;
+      return { ...a, cliente: cli?.nome ?? 'Cliente' };
+    }),
     payments: (pagamentos.data ?? []) as unknown as Payment[],
+    notifications: (notificacoes.data ?? []) as unknown as Notification[],
   };
   return { live: true, data };
 }

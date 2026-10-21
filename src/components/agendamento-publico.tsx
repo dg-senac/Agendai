@@ -2,7 +2,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { CalendarPlus, CalendarX2, CheckCircle2, Clock3, MapPin, MessageCircle, RefreshCcw, XCircle } from 'lucide-react';
+import { CalendarPlus, CalendarX2, CheckCircle2, Clock3, MapPin, MessageCircle, RefreshCcw, Star, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SeletorHorario, type SlotPub } from '@/components/publica';
 import { useDemoStore } from '@/components/use-demo-store';
@@ -21,6 +21,8 @@ type Acoes = {
   buscarSlots: (data: Date, servicoId: string, membroId: string | null) => Promise<SlotPub[]>;
   onCancelar: () => Promise<void>;
   onRemarcar: (novoInicioISO: string) => Promise<void>;
+  onAvaliar?: (nota: number, comentario: string) => Promise<void>;
+  jaAvaliou?: boolean;
 };
 
 const STATUS_INFO: Record<string, { rotulo: string; classe: string }> = {
@@ -31,11 +33,14 @@ const STATUS_INFO: Record<string, { rotulo: string; classe: string }> = {
   faltou: { rotulo: 'Não compareceu', classe: '#c04646' },
 };
 
-export function AgendamentoUI({ vm, buscarSlots, onCancelar, onRemarcar }: Acoes) {
+export function AgendamentoUI({ vm, buscarSlots, onCancelar, onRemarcar, onAvaliar, jaAvaliou }: Acoes) {
   const [confirmando, setConfirmando] = useState(false);
   const [remarcando, setRemarcando] = useState(false);
   const [slot, setSlot] = useState<SlotPub | null>(null);
   const [busy, setBusy] = useState(false);
+  const [nota, setNota] = useState(5);
+  const [comentario, setComentario] = useState('');
+  const [avaliado, setAvaliado] = useState(Boolean(jaAvaliou));
   const ini = new Date(vm.inicio);
   const ativo = vm.status === 'confirmado' || vm.status === 'pendente_pagamento';
   const dentroDoPrazo = ini.getTime() - Date.now() >= vm.limiteHoras * 3600_000;
@@ -98,7 +103,34 @@ export function AgendamentoUI({ vm, buscarSlots, onCancelar, onRemarcar }: Acoes
           )}
 
           {vm.status === 'cancelado' && <p className="muted mt-6" style={{ fontSize: 13, lineHeight: 1.7 }}>Este agendamento foi cancelado. Quando quiser, será um prazer te receber de novo:</p>}
-          {vm.status === 'concluido' && <p className="muted mt-6" style={{ fontSize: 13 }}>Esperamos que tenha adorado! ⭐ A avaliação chega na Fase 4 do Agendaí.</p>}
+          {vm.status === 'concluido' && (
+            avaliado ? (
+              <div className="card mt-6" style={{ padding: 16, background: '#eaf7ef', borderColor: '#cfe9d8' }}>
+                <p style={{ fontSize: 13, fontWeight: 600, color: '#256b47' }}>Avaliação registrada. Muito obrigado! 💜</p>
+                <p className="muted" style={{ fontSize: 11, marginTop: 4 }}>O negócio pode publicá-la na página dele e responder para você.</p>
+              </div>
+            ) : onAvaliar ? (
+              <form className="card mt-6" style={{ padding: 18 }} onSubmit={async (e) => {
+                e.preventDefault(); setBusy(true);
+                try { await onAvaliar(nota, comentario.trim()); setAvaliado(true); toast.success('Avaliação enviada. Obrigado!'); }
+                catch (err) { toast.error(err instanceof Error ? err.message : 'Não foi possível avaliar.'); }
+                setBusy(false);
+              }}>
+                <h2 style={{ fontSize: 15, fontWeight: 800 }}>Como foi seu atendimento? ⭐</h2>
+                <div className="row mt-3" role="radiogroup" aria-label="Nota do atendimento" style={{ gap: 4 }}>
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <button key={n} type="button" role="radio" aria-checked={nota === n} aria-label={`${n} ${n === 1 ? 'estrela' : 'estrelas'}`} onClick={() => setNota(n)} style={{ padding: 4 }}>
+                      <Star size={30} fill={n <= nota ? '#e3a008' : 'none'} style={{ color: '#e3a008' }} opacity={n <= nota ? 1 : 0.35} />
+                    </button>
+                  ))}
+                </div>
+                <label className="mt-3" style={{ display: 'grid' }}>Conte um pouquinho (opcional)
+                  <textarea value={comentario} onChange={(e) => setComentario(e.target.value)} rows={3} maxLength={1000} placeholder="O que você mais gostou?" />
+                </label>
+                <Button type="submit" className="w-full mt-4" style={{ background: vm.cor }} disabled={busy}>{busy ? 'Enviando…' : 'Enviar avaliação'}</Button>
+              </form>
+            ) : <p className="muted mt-6" style={{ fontSize: 13 }}>Esperamos que tenha adorado! ⭐</p>
+          )}
           <div className="flex flex-wrap gap-2 mt-5">
             <Button asChild variant="outline" size="sm"><Link href={`/${vm.slug}`}>Agendar novo horário</Link></Button>
             {whats && <Button asChild variant="outline" size="sm"><a href={`https://wa.me/${whats.length <= 11 ? `55${whats}` : whats}`} target="_blank" rel="noreferrer"><MessageCircle size={13} />Falar com o negócio</a></Button>}
@@ -139,6 +171,13 @@ export function AgendamentoDemo({ token }: { token: string }) {
   };
 
   return <AgendamentoUI vm={vm} buscarSlots={buscarSlots}
+    jaAvaliou={(store.reviews ?? []).some((r) => r.agendamento_id === ag.id)}
+    onAvaliar={async (notaAval, comentarioAval) => {
+      setStore((s) => ({
+        ...s,
+        reviews: [...s.reviews, { id: crypto.randomUUID(), nota: notaAval, comentario: comentarioAval, cliente: vm.clienteNome, publica: false, resposta: null, agendamento_id: ag.id, created_at: new Date().toISOString() }],
+      }));
+    }}
     onCancelar={async () => {
       // Regra configurável: cancelou dentro do prazo → estorna o sinal pago.
       const estorna = store.business.config_estorno_cliente_no_prazo ?? true;
@@ -198,6 +237,11 @@ export function AgendamentoLive({ token, inicial }: { token: string; inicial: To
   }
 
   return <AgendamentoUI vm={vm} buscarSlots={buscarSlots}
+    onAvaliar={async (notaAval, comentarioAval) => {
+      const res = await fetch('/api/publico/avaliar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, nota: notaAval, comentario: comentarioAval }) });
+      const json: { error?: string } = await res.json();
+      if (!res.ok) throw new Error(json.error ?? 'Não foi possível avaliar.');
+    }}
     onCancelar={() => acao({ token, acao: 'cancelar' })}
     onRemarcar={(novo) => acao({ token, acao: 'remarcar', novo_inicio: novo })} />;
 }

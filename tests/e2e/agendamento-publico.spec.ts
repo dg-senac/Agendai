@@ -23,9 +23,9 @@ async function escolherDiaEHora(page: Page): Promise<string> {
 }
 
 async function preencherDados(page: Page) {
-  await page.getByLabel(/Seu nome/).fill('Cliente Teste E2E');
-  await page.getByLabel(/WhatsApp/).fill('(81) 99999-0001');
-  await page.getByLabel(/E-mail/).fill('cliente.teste@exemplo.com.br');
+  await page.getByLabel('Seu nome', { exact: true }).fill('Cliente Teste E2E');
+  await page.getByLabel('WhatsApp', { exact: true }).fill('(81) 99999-0001');
+  await page.getByLabel('E-mail (para receber a confirmação)', { exact: true }).fill('cliente.teste@exemplo.com.br');
   await page.getByRole('checkbox').check();
   await page.getByRole('button', { name: /Ver resumo/ }).click();
   await expect(page.getByRole('heading', { name: 'Confira seu agendamento' })).toBeVisible();

@@ -3,7 +3,9 @@ import { expect, test, type Page } from '@playwright/test';
 const SLUG = '/studio-beleza-natural';
 
 /** Escolhe o primeiro dia com horários livres (pula hoje e dias sem expediente). */
-async function escolherDiaEHora(page: Page): Promise<string> {
+type Escolha = { hora: string; indiceDia: number };
+
+async function escolherDiaEHora(page: Page): Promise<Escolha> {
   const horarios = page.getByRole('button', { name: /^\d{2}:\d{2}$/ });
   const dias = page.locator('.pub-calendario button.rdp-day_button:not([disabled])').filter({ hasText: /^\d{1,2}$/ });
   await expect(dias.first()).toBeVisible({ timeout: 15_000 }); // calendário entra sob demanda
@@ -12,14 +14,24 @@ async function escolherDiaEHora(page: Page): Promise<string> {
     await dias.nth(i).click();
     try {
       await horarios.first().waitFor({ state: 'visible', timeout: 2500 });
-      const texto = (await horarios.first().innerText()).trim();
+      const hora = (await horarios.first().innerText()).trim();
       await horarios.first().click();
-      return texto;
+      return { hora, indiceDia: i };
     } catch {
       /* dia sem vagas: tenta o próximo */
     }
   }
   throw new Error('Nenhum horário livre encontrado nos próximos dias (demonstração).');
+}
+
+/** Reabre o mesmo dia (mesmo índice da grade) e diz se a hora é oferecida. */
+async function horaOferecidaNoDia(page: Page, indiceDia: number, hora: string): Promise<boolean> {
+  const dias = page.locator('.pub-calendario button.rdp-day_button:not([disabled])').filter({ hasText: /^\d{1,2}$/ });
+  await expect(dias.first()).toBeVisible({ timeout: 15_000 });
+  await dias.nth(indiceDia).click();
+  // espera a busca de horários daquele dia terminar de renderizar
+  await page.waitForTimeout(400);
+  return page.getByRole('button', { name: hora, exact: true }).isVisible().catch(() => false);
 }
 
 async function preencherDados(page: Page) {
@@ -37,11 +49,11 @@ async function reservar(page: Page, servico: string, profissional = 'Qualquer pr
   await expect(page.getByRole('heading', { name: /Com quem/ })).toBeVisible();
   await page.getByRole('button', { name: new RegExp(profissional) }).click();
   await expect(page.getByRole('heading', { name: 'Escolha o dia e o horário' })).toBeVisible();
-  const hora = await escolherDiaEHora(page);
+  const escolha = await escolherDiaEHora(page);
   await page.getByRole('button', { name: 'Continuar' }).click();
   await preencherDados(page);
   await page.getByRole('button', { name: /Confirmar agendamento/ }).click();
-  return hora;
+  return escolha;
 }
 
 test.describe('Página pública de agendamento (demonstração)', () => {
@@ -63,21 +75,14 @@ test.describe('Página pública de agendamento (demonstração)', () => {
   });
 
   test('serviço com sinal: Pix expirado libera o horário', async ({ page }) => {
-    const hora = await reservar(page, 'Coloração completa');
+    const { hora, indiceDia } = await reservar(page, 'Coloração completa');
     await page.getByRole('button', { name: /Simular expiração/ }).click();
 
-    // Volta ao início: o mesmo horário deve estar livre de novo
+    // Volta ao início: no MESMO dia, o horário deve estar livre de novo
     await page.goto(SLUG);
     await page.getByRole('button', { name: /Coloração completa/ }).click();
     await page.getByRole('button', { name: /Qualquer profissional/ }).click();
-    const dias = page.locator('.pub-calendario button.rdp-day_button:not([disabled])').filter({ hasText: /^\d{1,2}$/ });
-    await expect(dias.first()).toBeVisible({ timeout: 15_000 });
-    let reapareceu = false;
-    for (let i = 0; i < Math.min(await dias.count(), 10) && !reapareceu; i++) {
-      await dias.nth(i).click();
-      reapareceu = await page.getByRole('button', { name: hora, exact: true })
-        .isVisible({ timeout: 1500 }).catch(() => false);
-    }
+    const reapareceu = await horaOferecidaNoDia(page, indiceDia, hora);
     expect(reapareceu, 'o horário expirado deveria voltar a ficar disponível').toBe(true);
   });
 
@@ -86,24 +91,14 @@ test.describe('Página pública de agendamento (demonstração)', () => {
     // (Com "qualquer profissional" o mesmo horário seguiria livre com outra
     //  pessoa — correto. A garantia sob concorrência real é a constraint
     //  EXCLUDE do Postgres; aqui validamos a regra na interface demo.)
-    const hora = await reservar(page, 'Corte feminino', 'Camila Santos');
+    const { hora, indiceDia } = await reservar(page, 'Corte feminino', 'Camila Santos');
     await expect(page.getByRole('heading', { name: /Agendamento confirmado/ })).toBeVisible();
 
     await page.goto(SLUG);
     await page.getByRole('button', { name: /Corte feminino/ }).click();
     await page.getByRole('button', { name: /Camila Santos/ }).click();
-    const dias = page.locator('.pub-calendario button.rdp-day_button:not([disabled])').filter({ hasText: /^\d{1,2}$/ });
-    await expect(dias.first()).toBeVisible({ timeout: 15_000 });
-    let aindaAparece = false;
-    // O dia reservado foi o primeiro com vagas a partir de amanhã:
-    // varremos os dias próximos procurando o vazamento.
-    for (let i = 1; i < Math.min(await dias.count(), 8); i++) {
-      await dias.nth(i).click();
-      const presente = await page.getByRole('button', { name: hora, exact: true })
-        .isVisible({ timeout: 1500 }).catch(() => false);
-      if (presente) { aindaAparece = true; break; }
-    }
-    expect(aindaAparece, 'o horário já reservado não deveria ser oferecido outra vez').toBe(false);
+    const aindaAparece = await horaOferecidaNoDia(page, indiceDia, hora);
+    expect(aindaAparece, 'o horário já reservado não deveria ser oferecido outra vez para a Camila Santos').toBe(false);
   });
 
   test('slug inexistente mostra pagina amigável na demonstração', async ({ page }) => {

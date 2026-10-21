@@ -47,3 +47,8 @@
 .cmdk-caixa [cmdk-item][data-selected='true']{background:#efecfd;color:#4c3ec2}
 .dark .cmdk-caixa [cmdk-item][data-selected='true']{background:#33315e;color:#cfc8fb}
 .cmdk-caixa [cmdk-empty]{padding:26px;text-align:center;font-size:13px;color:var(--muted)}
+
+/* ── Fase 6: transição das etapas do agendamento público (CSS puro) ───────── */
+.etapa-animada{animation:etapa-entra .22s ease both}
+@keyframes etapa-entra{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion: reduce){.etapa-animada{animation:none}}

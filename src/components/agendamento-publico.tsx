@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import { CalendarPlus, CalendarX2, CheckCircle2, Clock3, MapPin, MessageCircle, RefreshCcw, Star, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { SeletorHorario, type SlotPub } from '@/components/publica';
+import { SeletorHorario, type SlotPub } from '@/components/seletor-horario';
 import { useDemoStore } from '@/components/use-demo-store';
 import { apenasDigitos, iniciais } from '@/lib/demo';
 import { encontrarConflito, formatarHora, gerarIcs, gerarSlots } from '@/lib/disponibilidade';

@@ -1,6 +1,9 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { PublicaDemo, PublicaLive, type NegocioPublico } from '@/components/publica';
+import dynamic from 'next/dynamic';
+import { PublicaLive, type NegocioPublico } from '@/components/publica';
+
+const PublicaDemo = dynamic(() => import('@/components/publica-demo').then((m) => m.PublicaDemo));
 import { configured, supabase } from '@/lib/supabase/server';
 
 async function buscarPublico(slug: string): Promise<NegocioPublico | null> {

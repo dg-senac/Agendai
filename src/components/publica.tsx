@@ -1,27 +1,22 @@
 'use client';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
-const Calendario = dynamic(() => import('./calendario'), { ssr: false, loading: () => <p className="muted" style={{ fontSize: 12, padding: 24 }}>Carregando calendário…</p> });
 const CarrosselAvaliacoes = dynamic(() => import('./carrossel-avaliacoes'), { ssr: false });
-import { LazyMotion, domAnimation, m, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
 import { ArrowLeft, ArrowRight, CalendarPlus, Check, Clock3, Copy, Loader2, MapPin, MessageCircle, QrCode, Scissors, UserRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useDemoStore } from '@/components/use-demo-store';
-import { apenasDigitos, iniciais, novoToken, type Appointment, type Business, type Member, type Review, type Service } from '@/lib/demo';
-import { encontrarConflito, formatarHora, gerarIcs, gerarSlots, membroAtende } from '@/lib/disponibilidade';
-import { calcularSinal, dentroDoLimiteMensal, planoEfetivo } from '@/lib/planos';
-import { notificacoesDoAgendamento } from '@/lib/automacao';
-import { gerarCopiaEColaSimulada } from '@/lib/pagamentos/simulado';
+import { apenasDigitos, iniciais, type Business, type Member, type Review, type Service } from '@/lib/demo';
+import { formatarHora, gerarIcs, membroAtende } from '@/lib/disponibilidade';
 import { moeda } from '@/lib/utils';
 
-export type SlotPub = { membro_id: string; inicio: string; fim: string };
+export type { SlotPub } from './seletor-horario';
+import { SeletorHorario, type SlotPub } from './seletor-horario';
 export type PagamentoPix = { id: string; copia_cola: string; qr_base64?: string | null; expira_em: string; valor_centavos: number; simulado: boolean };
 export type ResultadoAgendar = { id?: string; token: string; status: string; sinal_centavos: number; preco_centavos: number; membro_id: string; inicio: string; fim: string; pagamento?: PagamentoPix };
 type DadosCliente = { nome: string; whatsapp: string; email: string; observacoes: string; consentimento: boolean };
 
-type UiProps = {
+export type UiProps = {
   business: Business; services: Service[]; members: Member[]; reviews: Review[];
   buscarSlots: (data: Date, servicoId: string, membroId: string | null) => Promise<SlotPub[]>;
   agendar: (d: { servicoId: string; membroId: string | null; inicio: string; cliente: DadosCliente }) => Promise<ResultadoAgendar>;
@@ -93,7 +88,6 @@ export function PublicaUI({ business, services, members, reviews, buscarSlots, a
   const membroResultado = resultado ? members.find((m) => m.id === resultado.membro_id) : null;
 
   return (
-    <LazyMotion features={domAnimation}>
       <div style={{ ['--pub-cor' as string]: cor, minHeight: '100vh', background: 'var(--background)' }}>
         <header style={{ position: 'sticky', top: 0, zIndex: 20, backdropFilter: 'blur(10px)', background: 'color-mix(in srgb, var(--surface) 82%, transparent)', borderBottom: '1px solid var(--border)' }}>
           <div className="between" style={{ maxWidth: 880, margin: 'auto', padding: '12px 20px' }}>
@@ -125,8 +119,7 @@ export function PublicaUI({ business, services, members, reviews, buscarSlots, a
               </>
             )}
 
-            <AnimatePresence mode="wait">
-              <m.div key={step} initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -24 }} transition={{ duration: 0.22 }}>
+            <div key={step} className="etapa-animada">
                 {step === 0 && (
                   <div className="mt-5">
                     <h2 className="text-lg font-bold">O que você quer fazer hoje? ✨</h2>
@@ -222,8 +215,7 @@ export function PublicaUI({ business, services, members, reviews, buscarSlots, a
                     <p className="muted mt-6" style={{ fontSize: 11 }}>Guarde o link acima: é com ele que você remarca ou cancela, sem precisar de senha. 💜</p>
                   </div>
                 )}
-              </m.div>
-            </AnimatePresence>
+            </div>
           </div>
 
           {members.length > 0 && (
@@ -248,7 +240,6 @@ export function PublicaUI({ business, services, members, reviews, buscarSlots, a
           </footer>
         </main>
       </div>
-    </LazyMotion>
   );
 }
 
@@ -330,153 +321,7 @@ function PixEtapa({ cor, pagamento, token, consultarStatus, simularPix, onConfir
   );
 }
 
-export function SeletorHorario({ cor, buscarSlots, servicoId, membroId, slotSel, onSelect, onContinuar }: {
-  cor: string; buscarSlots: UiProps['buscarSlots']; servicoId: string; membroId: string | null;
-  slotSel: SlotPub | null; onSelect: (s: SlotPub) => void; onContinuar?: () => void;
-}) {
-  const [data, setData] = useState<Date | undefined>(undefined);
-  const [slots, setSlots] = useState<SlotPub[]>([]);
-  const [carregando, setCarregando] = useState(false);
-  const hoje = useMemo(() => new Date(), []);
-  const limite = useMemo(() => new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() + 60), [hoje]);
-
-  const carregar = useCallback(async (d: Date) => {
-    setCarregando(true);
-    try { setSlots(await buscarSlots(d, servicoId, membroId)); }
-    catch { toast.error('Não foi possível buscar os horários deste dia.'); setSlots([]); }
-    setCarregando(false);
-  }, [buscarSlots, servicoId, membroId]);
-
-  useEffect(() => { if (data) void carregar(data); }, [data, carregar]);
-
-  const tempos = useMemo(() => {
-    const mapa = new Map<string, SlotPub>();
-    for (const s of slots) if (!mapa.has(s.inicio)) mapa.set(s.inicio, s);
-    return [...mapa.values()];
-  }, [slots]);
-
-  return (
-    <div className="mt-4">
-      <h2 className="text-lg font-bold">Escolha o dia e o horário</h2>
-      <div className="pub-calendario mt-4">
-        <Calendario selected={data} onSelect={setData} hoje={hoje} limite={limite} />
-      </div>
-      {data && (
-        <div className="mt-5">
-          <p style={{ fontSize: 13, fontWeight: 700 }}>Horários livres — {data.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'short' })}</p>
-          {carregando ? <p className="muted row mt-4" style={{ fontSize: 12 }}><Loader2 size={15} className="animate-spin" />Buscando horários…</p>
-            : tempos.length === 0 ? <p className="muted mt-4" style={{ fontSize: 12, lineHeight: 1.7 }}>Nenhum horário livre neste dia. 😕<br />Experimente outra data — a agenda abre novas vagas toda semana.</p>
-            : (
-              <div className="flex flex-wrap gap-2 mt-3">
-                {tempos.map((s) => {
-                  const ativo = slotSel?.inicio === s.inicio;
-                  return <button key={s.inicio} onClick={() => onSelect(s)} aria-pressed={ativo} className="badge" style={{ padding: '10px 14px', fontSize: 12, borderRadius: 10, background: ativo ? cor : 'var(--hover)', color: ativo ? '#fff' : 'var(--foreground)', border: `1px solid ${ativo ? cor : 'var(--border)'}` }}>{formatarHora(new Date(s.inicio))}</button>;
-                })}
-              </div>
-            )}
-          {onContinuar && <Button className="w-full mt-6" style={{ background: cor }} disabled={!slotSel || !data || new Date(slotSel.inicio).toDateString() !== data.toDateString()} onClick={onContinuar}>Continuar<ArrowRight size={15} /></Button>}
-        </div>
-      )}
-      {!data && <p className="muted mt-4" style={{ fontSize: 12 }}>Toque em um dia do calendário para ver os horários livres.</p>}
-    </div>
-  );
-}
-
 /* ── Demonstração (localStorage) ──────────────────────────────────────────── */
-export function PublicaDemo({ slug }: { slug: string }) {
-  const { store, setStore, ready } = useDemoStore();
-
-  const buscarSlots: UiProps['buscarSlots'] = async (data, servicoId, membroId) => {
-    const servicoAtual = store.services.find((s) => s.id === servicoId);
-    if (!servicoAtual) return [];
-    const aptos = new Set(store.members.filter((m) => m.ativo && membroAtende(m, servicoId)).map((m) => m.id));
-    return gerarSlots({
-      data, duracaoMinutos: servicoAtual.duracao_minutos,
-      schedules: store.schedules.filter((h) => aptos.has(h.membro_id)),
-      appointments: store.appointments, blocks: store.blocks,
-      membroId, antecedenciaMinimaHoras: store.business.config_antecedencia_minima_horas ?? 2,
-    }).map((s) => ({ membro_id: s.membro_id, inicio: s.inicio.toISOString(), fim: s.fim.toISOString() }));
-  };
-
-  const agendar: UiProps['agendar'] = async ({ servicoId, membroId, inicio, cliente }) => {
-    const servicoAtual = store.services.find((s) => s.id === servicoId);
-    if (!servicoAtual) throw new Error('Serviço não encontrado.');
-    const ini = new Date(inicio);
-    const livres = await buscarSlots(ini, servicoId, membroId);
-    const escolhido = livres.find((s) => s.inicio === ini.toISOString());
-    if (!escolhido) throw new Error('Este horário não está mais disponível. Escolha outro, por favor.');
-    const fim = new Date(ini.getTime() + servicoAtual.duracao_minutos * 60_000);
-    if (encontrarConflito(store.appointments, { membro_id: escolhido.membro_id, inicio: ini, fim })) {
-      throw new Error('Este horário acabou de ser reservado por outra pessoa.');
-    }
-    const digitos = apenasDigitos(cliente.whatsapp);
-    const whats = digitos.length <= 11 ? `55${digitos}` : digitos;
-    const plano = planoEfetivo(store.business);
-    if (!dentroDoLimiteMensal(plano, store.appointments, ini)) {
-      throw new Error('Este negócio atingiu o limite de agendamentos do mês. Tente no próximo mês ou fale pelo WhatsApp.');
-    }
-    const clienteExistente = store.clients.find((c) => c.whatsapp === whats);
-    const sinal = calcularSinal({
-      plano, preco_centavos: servicoAtual.preco_centavos, percentual: store.business.config_sinal_percentual ?? 30,
-      servicoExige: servicoAtual.exige_sinal, faltasCliente: clienteExistente?.total_faltas ?? 0,
-      faltasParaSinal: store.business.config_faltas_sinal_obrigatorio ?? null,
-    });
-    const token = novoToken();
-    const agendamentoId = crypto.randomUUID();
-    const pagamentoId = crypto.randomUUID();
-    const expiraEm = new Date(Date.now() + 10 * 60_000).toISOString();
-    const copiaCola = gerarCopiaEColaSimulada(sinal, pagamentoId);
-    setStore((s) => {
-      const existente = s.clients.find((c) => c.whatsapp === whats);
-      const clienteId = existente?.id ?? crypto.randomUUID();
-      const clients = existente
-        ? s.clients.map((c) => c.id === clienteId ? { ...c, nome: cliente.nome, email: cliente.email || c.email } : c)
-        : [...s.clients, { id: clienteId, nome: cliente.nome, whatsapp: whats, email: cliente.email, observacoes: '', total_agendamentos: 0, total_faltas: 0, created_at: new Date().toISOString() }];
-      const ag: Appointment = { id: agendamentoId, cliente_id: clienteId, membro_id: escolhido.membro_id, servico_id: servicoId, inicio_ts: ini.toISOString(), fim_ts: fim.toISOString(), status: sinal > 0 ? 'pendente_pagamento' : 'confirmado', origem: 'pagina_publica', preco_centavos: servicoAtual.preco_centavos, sinal_centavos: sinal, token_publico: token, observacoes: cliente.observacoes, reserva_expira_em: sinal > 0 ? expiraEm : null };
-      const payments = sinal > 0
-        ? [...(s.payments ?? []), { id: pagamentoId, agendamento_id: agendamentoId, tipo: 'sinal' as const, metodo: 'pix' as const, valor_centavos: sinal, status: 'pendente' as const, provider: 'simulado', provider_id: `sim-${pagamentoId}`, pix_copia_cola: copiaCola, expira_em: expiraEm, created_at: new Date().toISOString() }]
-        : s.payments ?? [];
-      const donoEmail = 'dono@exemplo.com.br';
-      const novas = notificacoesDoAgendamento(ag, { nome: cliente.nome, whatsapp: whats, email: cliente.email } as never)
-        .map((n) => ({ ...n, id: crypto.randomUUID(), status: n.status ?? 'pendente' as const }));
-      // Sem sinal: confirmação imediata entra na fila; com sinal, só após o Pix.
-      const notifications = [
-        ...(s.notifications ?? []),
-        ...(sinal > 0 ? [] : novas),
-        { id: crypto.randomUUID(), agendamento_id: ag.id, canal: 'email' as const, tipo: 'novo_agendamento' as const, status: 'enviada' as const, destinatario: donoEmail, agendada_para: new Date().toISOString(), enviada_em: new Date().toISOString() },
-      ];
-      return { ...s, clients, appointments: [...s.appointments, ag], payments, notifications };
-    });
-    return { id: agendamentoId, token, status: sinal > 0 ? 'pendente_pagamento' : 'confirmado', sinal_centavos: sinal, preco_centavos: servicoAtual.preco_centavos, membro_id: escolhido.membro_id, inicio: ini.toISOString(), fim: fim.toISOString(), pagamento: sinal > 0 ? { id: pagamentoId, copia_cola: copiaCola, qr_base64: null, expira_em: expiraEm, valor_centavos: sinal, simulado: true } : undefined };
-  };
-
-  if (ready && slug !== store.business.slug) {
-    return <main className="min-h-screen grid place-items-center p-8"><div className="text-center"><h1 className="text-2xl font-bold">Negócio não encontrado 😕</h1><p className="muted my-4">Confira o endereço. Na demonstração, o negócio ativo é <strong>{store.business.nome}</strong>.</p><Link className="text-indigo-500 font-semibold" href={`/${store.business.slug}`}>Ir para /{store.business.slug} →</Link></div></main>;
-  }
-  const consultarStatus: UiProps['consultarStatus'] = async (token) => ({
-    status: store.appointments.find((a) => a.token_publico === token)?.status ?? 'cancelado',
-  });
-  const simularPix: UiProps['simularPix'] = async (token, acao) => {
-    setStore((s) => {
-      const ag = s.appointments.find((a) => a.token_publico === token);
-      if (!ag) return s;
-      const clienteDoAg = s.clients.find((c) => c.id === ag.cliente_id);
-      const novas = acao === 'pagar' && clienteDoAg
-        ? notificacoesDoAgendamento(ag, clienteDoAg).map((n) => ({ ...n, id: crypto.randomUUID(), status: n.status ?? 'pendente' as const }))
-        : [];
-      return {
-        ...s,
-        appointments: s.appointments.map((a) => a.id === ag.id ? { ...a, status: acao === 'pagar' ? 'confirmado' as const : 'cancelado' as const, reserva_expira_em: null } : a),
-        payments: (s.payments ?? []).map((pg) => pg.agendamento_id === ag.id && pg.status === 'pendente'
-          ? { ...pg, status: acao === 'pagar' ? 'pago' as const : 'expirado' as const, pago_em: acao === 'pagar' ? new Date().toISOString() : pg.pago_em }
-          : pg),
-        notifications: [...(s.notifications ?? []), ...novas],
-      };
-    });
-  };
-  return <PublicaUI business={store.business} services={store.services} members={store.members} reviews={store.reviews.filter((r) => r.publica !== false)} buscarSlots={buscarSlots} agendar={agendar} consultarStatus={consultarStatus} simularPix={simularPix} />;
-}
-
 /* ── Modo real (RPCs do Supabase) ─────────────────────────────────────────── */
 export type NegocioPublico = Business & {
   id: string; slug: string;

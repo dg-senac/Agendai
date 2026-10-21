@@ -1,3 +1,20 @@
 'use client';
-import { Button } from '@/components/ui/button';
-export default function ErrorPage({reset}:{reset:()=>void}){return <main className="min-h-screen grid place-items-center p-8"><div className="card p-10 text-center max-w-lg"><h1 className="text-2xl font-bold">Não conseguimos carregar seu espaço</h1><p className="muted my-5">Tente novamente. Se o problema continuar, confira a configuração do Supabase e a instalação do SQL.</p><Button onClick={reset}>Tentar novamente</Button></div></main>;}
+import { useEffect } from 'react';
+import { relatarErro } from '@/lib/relatar-erro';
+
+/** Fronteira de erro das páginas: reporta e oferece uma saída gentil. */
+export default function ErroPagina({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
+  useEffect(() => { void relatarErro(error); }, [error]);
+  return (
+    <main style={{ minHeight: '70vh', display: 'grid', placeItems: 'center', padding: 24 }}>
+      <div style={{ textAlign: 'center', maxWidth: 420 }}>
+        <p style={{ fontSize: 40 }}>😵‍💫</p>
+        <h1 style={{ fontSize: 22, fontWeight: 800, marginTop: 14 }}>Ops! Algo saiu do lugar.</h1>
+        <p className="muted" style={{ fontSize: 13, lineHeight: 1.8, marginTop: 10 }}>
+          Já anotamos o problema por aqui. Tente de novo — se insistir, fale com a gente pelo WhatsApp do negócio.
+        </p>
+        <button className="button primary" style={{ marginTop: 20 }} onClick={reset}>Tentar novamente</button>
+      </div>
+    </main>
+  );
+}

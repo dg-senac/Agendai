@@ -95,3 +95,15 @@ Toda decisão não especificada no briefing segue a opção mais simples e segur
 41. **Super admin barrado no banco:** `/admin` consome `admin_visao_geral()` / `admin_definir_suspensao()` — ambas exigem `eh_super_admin()` e gravam em `auditoria_admin`. Sem Supabase, a rota explica o pré-requisito (nada de tela quebrada). Suspensão bloqueia a página pública (`negocio_publico` já respeita `suspenso_em`) e as policies de leitura.
 
 42. **Paleta de comandos (cmdk)** carregada via dynamic no painel: Ctrl/⌘+K, navegação, ações rápidas e busca de clientes/serviços da Store. Item de cliente leva à listagem (foco/âncora fina fica para polimento da Fase 6).
+
+## Fase 6 – Qualidade (2026-10-21)
+
+43. **Bundle medido, não chutado:** `@next/bundle-analyzer` atrás de `ANALYZE=true` (`npm run analyze` → `.next/analyze/client.html`). Decomposição de `/[slug]` (185 kB): React+Next ~104 kB (piso da plataforma), **Motion 41,5 kB gzip**, resto nosso + sonner/lucide. Zod (28 kB) parecia suspeito, mas o `app-build-manifest` provou que ele **não** entra na rota pública.
+
+44. **Página de conversão sem Motion:** o wizard usava o Motion para uma única transição (fade/slide de 220 ms entre etapas). Substituído por CSS puro (`.etapa-animada` + `prefers-reduced-motion`), mesmo visual de entrada. O Motion continua no painel (onde o briefing o prevê) e o GSAP na landing. Resultado: `/[slug]` **144 kB** (meta 150 kB ✅).
+
+45. **React Query escopado ao painel:** nenhum componente usava `useQuery` (fetch + store local dominam), mas o `QueryClientProvider` global pesava em todas as rotas. Saiu do layout raiz; vive em `src/app/painel/layout.tsx`, pronto para as queries do modo real. Na mesma leva: `SeletorHorario` virou arquivo próprio (a tela do cliente `/agendamento/[token]` caiu de 187→139 kB, sem carregar o wizard) e `PublicaDemo` virou chunk dinâmico separado — **em produção com Supabase, nenhum byte da demonstração baixa para o cliente**.
+
+46. **Sentry condicional e sem PII:** servidor/edge via `src/instrumentation.ts` (`onRequestError` ligado); no navegador, `instrumentation-client.ts` faz **import dinâmico somente com `NEXT_PUBLIC_SENTRY_DSN`** — sem DSN, zero bytes e zero comportamento. Fronteiras `error.tsx`/`global-error.tsx` em PT-BR reportam via `relatarErro()`. `withSentryConfig` (upload de source maps) fica para quando existir a conta Sentry — decisão consciente para manter o bundle previsível.
+
+47. **E2E e Lighthouse moram no CI:** Playwright com 11 cenários × 2 projetos (desktop + Pixel 7) contra o build de produção em modo demonstração — fluxo completo de agendamento, Pix pago/expirado, anti double-booking na interface (a garantia sob concorrência é a constraint do Postgres), Ctrl+K e upsell Premium. O sandbox de desenvolvimento não executa navegadores (CDN do Playwright fora da allowlist de rede e sem libs de sistema), então a execução é do job `e2e` no GitHub Actions, com relatório publicado em falha. Lighthouse CI (`.lighthouserc.json`: perf ≥0,85; a11y/SEO ≥0,90 como erro) roda manual/semanal no workflow `lighthouse.yml`. Dependabot semanal (npm) e mensal (actions).

@@ -1,5 +1,7 @@
 # Agendaí 💜
 
+[![CI](https://github.com/dg-senac/Agendai/actions/workflows/ci.yml/badge.svg)](https://github.com/dg-senac/Agendai/actions/workflows/ci.yml)
+
 Plataforma de agendamento online com cobrança via Pix para pequenos negócios brasileiros (barbearias, salões, manicures, personal trainers, pequenas clínicas). Cada negócio ganha sua página pública (`agendai.app/nome-do-negocio`) e um painel completo de gestão.
 
 ## Status das fases
@@ -76,6 +78,14 @@ CI no GitHub Actions (`.github/workflows/ci.yml`): lint, typecheck, testes e bui
 3. Em `/painel/configuracoes`: troque o plano para **Premium** e o CSV libera; mude para **Grátis** e tente adicionar um 2º profissional (bloqueado) ou agendar coloração (sem sinal). Simule **inadimplência** e veja o banner de carência.
 4. Cancele (pelo link do cliente ou na agenda) um agendamento com sinal pago e confira o **estorno** no Financeiro.
 5. Para resetar a demonstração, apague a chave `agendai-demo-v3` do localStorage.
+
+## Testar a Fase 6 (qualidade)
+
+1. **Bundles:** `npm run analyze` e abra `.next/analyze/client.html` — veja `/[slug]` em **144 kB** (a meta era 150 kB). O detalhamento por fase está em `PERFORMANCE.md`.
+2. **Testes E2E (Playwright):** `npm run build && npx playwright install chromium && npm run test:e2e` — 11 cenários em desktop e celular: agendamento completo, Pix pago/expirado, anti double-booking, Ctrl+K, upsell Premium e landing. No GitHub, rode a aba **Actions → CI** (job `e2e`).
+3. **Lighthouse:** Actions → **Lighthouse → Run workflow** (orçamentos em `.lighthouserc.json`: performance ≥ 0,85; acessibilidade e SEO ≥ 0,90).
+4. **Erros sob vigilância:** preencha `SENTRY_DSN`/`NEXT_PUBLIC_SENTRY_DSN` no `.env` e provoque um erro — a tela gentil aparece e o evento vai para o Sentry (sem DSN, nada muda e nada pesa).
+5. Unitários continuam em `npm test` (29 testes).
 
 ## Testar a Fase 5 (demonstração)
 

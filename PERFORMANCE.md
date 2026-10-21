@@ -67,3 +67,24 @@ Resend e React Email vivem **só no servidor** (worker) — zero impacto no bund
 | `/privacidade`, `/termos` | 104 kB (estáticas) |
 
 GSAP + Lenis **não entram no First Load** da landing: são chunks separados carregados em `useEffect` (~ animação progressiva — sem rede animada, a página já nasce completa). Relatórios e paleta de comandos também são chunks sob demanda no painel. A pendência dos 150 kB em `/[slug]` permanece para a Fase 6 (bundle analyzer + gzip real).
+
+## Fase 6 — build de produção final (2026-10-21)
+
+Medido com `@next/bundle-analyzer` (`npm run analyze`) + `app-build-manifest.json` por rota. Os números abaixo são o **First Load JS (gzip)** reportado pelo Next.
+
+| Rota | Antes (F5) | **Fase 6** | Meta |
+|---|---|---|---|
+| `/[slug]` (pública) | 185 kB | **144 kB** ✅ | ≤ 150 kB |
+| `/agendamento/[token]` | 187 kB | **139 kB** ✅ | ≤ 150 kB |
+| `/` (landing) | 124 kB | 124 kB | — |
+| `/painel` | 174 kB | 174 kB | — |
+| `/admin` | 124 kB | 124 kB | — |
+| Shared (React + Next) | 103 kB | 104 kB | piso da plataforma |
+
+**O que cortou (página pública):**
+1. **Motion fora do wizard (−41,5 kB gzip):** a transição entre etapas virou CSS (`.etapa-animada`). Motion segue no painel; GSAP, na landing.
+2. **React Query fora do layout raiz:** provider movido para `painel/layout.tsx` (ninguém usava `useQuery` no cliente público).
+3. **`SeletorHorario` extraído** de `publica.tsx`: a tela do cliente parou de baixar o wizard inteiro (−48 kB).
+4. **`PublicaDemo` em chunk dinâmico próprio:** demo store + disponibilidade + automação só baixam no modo demonstração.
+
+O Sentry do navegador é import dinâmico condicionado ao DSN — **0 kB** enquanto não houver conta. Pendência histórica dos 150 kB: **encerrada** 🎉. Core Web Vitals em campo ficam para o Lighthouse CI (`lighthouse.yml`, orçamentos em `.lighthouserc.json`) após o deploy.

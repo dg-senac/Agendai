@@ -14,3 +14,36 @@
 .dark .pub-calendario .rdp-root{--rdp-accent-background-color:#2c2f4a}
 .pub-calendario .rdp-selected .rdp-day_button{background:var(--pub-cor,#4f46e5);color:#fff;font-weight:800}
 .pub-calendario .rdp-disabled{opacity:.35}
+
+/* ── Fase 5: landing page ─────────────────────────────────────────────────── */
+.hero-fundo{background:
+  radial-gradient(52rem 30rem at 12% -10%, #4f46e528, transparent 60%),
+  radial-gradient(46rem 28rem at 88% 2%, #7c3aed24, transparent 60%),
+  radial-gradient(38rem 24rem at 50% 110%, #ec489914, transparent 60%)}
+.marquee-faixa{overflow:hidden;border-block:1px solid var(--border);padding:15px 0;background:var(--surface);mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent)}
+.marquee-trilha{display:flex;gap:54px;width:max-content;animation:marquee 46s linear infinite}
+.marquee-faixa:hover .marquee-trilha{animation-play-state:paused}
+.marquee-item{display:flex;gap:8px;align-items:center;font-size:12.5px;white-space:nowrap;color:var(--muted)}
+@keyframes marquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+.bento-grade{display:grid;gap:18px;grid-template-columns:repeat(3,1fr)}
+.bento-grande{grid-column:span 2}
+@media(max-width:860px){.bento-grade{grid-template-columns:1fr 1fr}.bento-grande{grid-column:span 2}}
+@media(max-width:560px){.bento-grade{grid-template-columns:1fr}.bento-grande{grid-column:span 1}}
+@property --angulo{syntax:'<angle>';initial-value:0deg;inherits:false}
+.plano-destaque{border-radius:22px;position:relative;box-shadow:0 22px 55px #5b4bd626}
+.plano-destaque::before{content:'';position:absolute;inset:-2px;border-radius:24px;background:conic-gradient(from var(--angulo),#4F46E5,#7C3AED,#ec4899,#4F46E5);z-index:-1;animation:girar-borda 5s linear infinite}
+@keyframes girar-borda{to{--angulo:360deg}}
+.faq-item summary::-webkit-details-marker{display:none}
+.faq-item[open ] .faq-seta{transform:rotate(180deg)}
+.faq-seta{transition:transform .25s}
+
+/* ── Fase 5: paleta de comandos (cmdk) ────────────────────────────────────── */
+.cmdk-fundo{position:fixed;inset:0;background:#11182770;backdrop-filter:blur(4px);z-index:80;display:flex;align-items:flex-start;justify-content:center;padding:12vh 16px 16px}
+.cmdk-caixa{background:var(--surface);border:1px solid var(--border);border-radius:18px;width:100%;max-width:560px;overflow:hidden;box-shadow:0 30px 90px #0004}
+.cmdk-caixa [cmdk-input]{width:100%;border:none;outline:none;background:transparent;padding:18px;font-size:15px;color:var(--foreground)}
+.cmdk-caixa [cmdk-list]{max-height:340px;overflow:auto;padding:8px}
+.cmdk-caixa [cmdk-group-heading]{font-size:10px;font-weight:700;letter-spacing:1.2px;color:var(--muted);padding:10px 10px 6px;text-transform:uppercase}
+.cmdk-caixa [cmdk-item]{display:flex;align-items:center;gap:11px;padding:11px 10px;border-radius:10px;font-size:13px;cursor:pointer;color:var(--foreground)}
+.cmdk-caixa [cmdk-item][data-selected='true']{background:#efecfd;color:#4c3ec2}
+.dark .cmdk-caixa [cmdk-item][data-selected='true']{background:#33315e;color:#cfc8fb}
+.cmdk-caixa [cmdk-empty]{padding:26px;text-align:center;font-size:13px;color:var(--muted)}

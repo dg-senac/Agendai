@@ -81,3 +81,17 @@ Toda decisão não especificada no briefing segue a opção mais simples e segur
 35. **Convite de equipe pelo Supabase Auth** (`inviteUserByEmail` via service_role): se o e-mail já tiver conta, vinculamos o usuário existente em vez de falhar. Na demonstração, o e-mail é apenas salvo no cadastro (com a mensagem de simulação no fluxo real avisando o contrário).
 
 36. **Ciclo de assinatura em duas implementações gêmeas e testadas:** `processar_ciclo_assinaturas()` (SQL) e `aplicarCicloAssinatura()` (TS, demo) — trial vencido → Grátis, cobrança vencida → inadimplente com `carencia_termina_em` (7 dias), carência vencida → downgrade. O aviso de trial (3 dias) entra na mesma fila de e-mails.
+
+## Fase 5 – Crescimento (2026-10-21, modo demonstração)
+
+37. **Landing animada com orçamento enxuto:** GSAP 3.15 (agora 100% livre — plugins Club viraram core: `SplitText`, `DrawSVG`) + **Lenis**, carregados via **imports dinâmicos dentro de `useEffect`** — a rota `/` tem 124 kB de First Load e as animações entram depois, sem bloquear o LCP. `prefers-reduced-motion`: Lenis desligado e nenhuma animação é criada (conteúdo já visível por padrão — nunca dependemos do GSAP para revelar texto). Timeline/ScrollTrigger só na landing, como manda o briefing; o app continua em Motion.
+
+38. **Relatórios calculados no cliente sobre a Store já carregada:** as agregações puras (`src/lib/relatorios.ts`) rodam sobre os mesmos dados do painel (demo e real) — zero queries extras. No modo conectado, a RPC `relatorio_negocio(int)` (guard de plano efetivo Premium no banco) serve de espelho para relatórios pesados/exports futuros. Gráficos em SVG/div próprios (sem dependência nova): área de receita, barras de ranking/peak hours e donut de comparecimento. Upsell com prévia borrada para planos abaixo do Premium.
+
+39. **SEO por tenant:** `sitemap.ts` lista as páginas públicas via RPC pública enxuta `slugs_publicos()` (só `slug` + `atualizado_em`, anon) — sem expor colunas sensíveis. Landing com metadata/OpenGraph própil, páginas `/privacidade` e `/termos` (modelos iniciais marcados para revisão jurídica).
+
+40. **PWA mínimo e seguro:** `manifest.ts` + ícones gerados por `next/og` (`icon.tsx`/`apple-icon.tsx` — sem arquivos binários no repo) e service worker próprio (`public/sw.js`) com cache-first de `/_next/static/` e network-first com fallback para navegação. **Nunca cacheia `/api`** (pagamentos, auth e dados são sempre ao vivo). Registro somente em produção.
+
+41. **Super admin barrado no banco:** `/admin` consome `admin_visao_geral()` / `admin_definir_suspensao()` — ambas exigem `eh_super_admin()` e gravam em `auditoria_admin`. Sem Supabase, a rota explica o pré-requisito (nada de tela quebrada). Suspensão bloqueia a página pública (`negocio_publico` já respeita `suspenso_em`) e as policies de leitura.
+
+42. **Paleta de comandos (cmdk)** carregada via dynamic no painel: Ctrl/⌘+K, navegação, ações rápidas e busca de clientes/serviços da Store. Item de cliente leva à listagem (foco/âncora fina fica para polimento da Fase 6).

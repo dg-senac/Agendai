@@ -55,3 +55,15 @@ A biblioteca `qrcode` entra **só sob demanda** na tela do Pix (import dinâmico
 | APIs de cron/avaliações/convites | server-only |
 
 Resend e React Email vivem **só no servidor** (worker) — zero impacto no bundle do navegador.
+
+## Fase 5 — build de produção (2026-10-21)
+
+| Rota | First Load JS |
+|---|---|
+| `/` (landing; GSAP/Lenis sob demanda) | 124 kB |
+| `/admin` | 124 kB |
+| `/[slug]` | 185 kB ⚠️ |
+| `/painel` (+ relatórios/cmdk via dynamic) | 174 kB |
+| `/privacidade`, `/termos` | 104 kB (estáticas) |
+
+GSAP + Lenis **não entram no First Load** da landing: são chunks separados carregados em `useEffect` (~ animação progressiva — sem rede animada, a página já nasce completa). Relatórios e paleta de comandos também são chunks sob demanda no painel. A pendência dos 150 kB em `/[slug]` permanece para a Fase 6 (bundle analyzer + gzip real).

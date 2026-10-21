@@ -24,4 +24,4 @@ export async function middleware(request: NextRequest) {
   return response;
 }
 
-export const config = { matcher: ['/painel/:path*', '/onboarding', '/api/:path*'] };
+export const config = { matcher: ['/painel/:path*', '/onboarding', '/admin', '/api/:path*'] };

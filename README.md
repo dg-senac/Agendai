@@ -77,6 +77,15 @@ CI no GitHub Actions (`.github/workflows/ci.yml`): lint, typecheck, testes e bui
 4. Cancele (pelo link do cliente ou na agenda) um agendamento com sinal pago e confira o **estorno** no Financeiro.
 5. Para resetar a demonstração, apague a chave `agendai-demo-v3` do localStorage.
 
+## Testar a Fase 5 (demonstração)
+
+1. Abra `/`: a **landing** animada (GSAP + Lenis) — hero com mockup flutuante, bento, planos com borda animada, FAQ e contadores. Com `prefers-reduced-motion` ativado no sistema, tudo fica estático (teste no DevTools → Rendering).
+2. Em `/painel/relatorios` (Premium): receita por dia, top serviços/profissionais, horários de pico, comparecimento e novos clientes. Troque o plano para Grátis em `/painel/configuracoes` e volte: aparece o upsell com prévia borrada.
+3. No painel, aperte **Ctrl+K** (ou ⌘K): busque por uma página, pelo nome de um cliente ou por "novo serviço".
+4. **PWA:** em produção, o navegador oferece "Instalar aplicativo"; ícones e manifesto em `/manifest.webmanifest`; offline, páginas já visitadas abrem do cache (APIs nunca são cacheadas).
+5. SEO: `/sitemap.xml`, `/robots.txt`, além de `/privacidade` e `/termos`.
+6. `/admin`: em demonstração explica o pré-requisito; com Supabase + perfil super admin, mostra MRR/churn e suspende/reativa negócios (auditado).
+
 ## Testar a Fase 2 (demonstração)
 
 1. Abra `/studio-beleza-natural` e faça um agendamento completo (serviço → profissional → dia/hora → dados → resumo). Horários ocupados, intervalo de almoço e antecedência mínima já são respeitados.

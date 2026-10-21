@@ -65,7 +65,7 @@ export function AuthForm({ modo, live }: { modo: 'entrar' | 'cadastro'; live: bo
         <Button type="submit" disabled={isSubmitting} className="w-full">{isSubmitting ? 'Um instante…' : cadastro ? 'Criar minha conta' : 'Entrar no meu espaço'}<ArrowRight size={15} /></Button>
       </form>
       <div className="between my-6 muted text-[11px]"><span style={{ flex: 1, height: 1, background: 'var(--border)' }} /><span className="px-3">ou</span><span style={{ flex: 1, height: 1, background: 'var(--border)' }} /></div>
-      <Button asChild variant="outline" className="w-full"><a href="/api/auth/google">Continuar com o Google</a></Button>
+      <Button type="button" variant="outline" className="w-full" onClick={() => { window.location.href = '/api/auth/google'; }}>Continuar com o Google</Button>
       <p className="muted text-xs text-center mt-7">{cadastro ? <>Já tem conta? <Link className="text-indigo-500 font-semibold" href="/entrar">Entrar</Link></> : <>Ainda não tem conta? <Link className="text-indigo-500 font-semibold" href="/cadastro">Criar grátis</Link></>}</p>
       {cadastro && <p className="muted text-[11px] text-center mt-4 leading-5">Ao criar sua conta, você concorda com nossos Termos de Uso e nossa Política de Privacidade (LGPD).</p>}
     </>

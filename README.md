@@ -7,7 +7,7 @@ Plataforma de agendamento online com cobrança via Pix para pequenos negócios b
 | Fase | Escopo | Status |
 |---|---|---|
 | 1 – Fundação | Setup, design system/tema, SQL completo com RLS, autenticação, onboarding, CRUD de serviços/equipe/horários | 🟡 Código pronto; falta conectar um projeto Supabase dedicado |
-| 2 – Núcleo | Disponibilidade, página pública + fluxo de agendamento, agenda do painel, clientes | ⏳ |
+| 2 – Núcleo | Disponibilidade, página pública + fluxo de agendamento, agenda do painel, clientes | 🟡 Pronta em modo demonstração; caminho real (RPCs/APIs) implementado, aguardando Supabase dedicado |
 | 3 – Dinheiro | Pix (Mercado Pago), webhooks, financeiro, assinaturas e limites por plano | ⏳ |
 | 4 – Automação | E-mails, lembretes (pg_cron), avaliações, .ics, trial/inadimplência | ⏳ |
 | 5 – Crescimento | Landing page (GSAP/Lenis), relatórios, SEO, PWA, super admin, Ctrl+K | ⏳ |
@@ -60,6 +60,13 @@ Para virar **super admin** (Fase 5): no painel do Supabase Auth, edite seu usuá
 | `npm test` | Vitest (testes unitários em `tests/`) |
 
 CI no GitHub Actions (`.github/workflows/ci.yml`): lint, typecheck, testes e build a cada push/PR.
+
+## Testar a Fase 2 (demonstração)
+
+1. Abra `/studio-beleza-natural` e faça um agendamento completo (serviço → profissional → dia/hora → dados → resumo). Horários ocupados, intervalo de almoço e antecedência mínima já são respeitados.
+2. Na confirmação, abra o link do cliente (`/agendamento/<token>`): remarque e cancele (respeita o limite de 4h), baixe o `.ics`.
+3. No painel: `/painel/agenda` (arraste atendimentos entre dias/horas, crie agendamento manual, bloqueie uma folga e veja o horário sumir da página pública), `/painel/clientes` (histórico, WhatsApp, exportar/excluir — LGPD), e os chips de "serviços que atende" em `/painel/equipe`.
+4. Os dados persistem no navegador (`localStorage`, chave `agendai-demo-v2`). Para resetar a demonstração, apague essa chave no DevTools.
 
 ## Testar a Fase 1
 

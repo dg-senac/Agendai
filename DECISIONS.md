@@ -33,3 +33,19 @@ Toda decisão não especificada no briefing segue a opção mais simples e segur
 14. **CSRF por checagem de `Origin` × `Host`** nas rotas de API com cookie de sessão (SameSite do Supabase + esta barreira). Webhooks (Fase 3) usarão assinatura do provedor, sem cookie.
 
 15. **Rate limit, limites por plano e jobs** estão desenhados no schema (colunas e índices prontos) e serão **aplicados no back-end** nas Fases 2–4, junto dos fluxos que protegem — nada de regra só no front.
+
+## Fase 2 – Núcleo (2026-10-21, modo demonstração por decisão do usuário)
+
+16. **Prioridade de validação alterada pelo usuário:** seguir para a Fase 2 apenas em modo demonstração. Todo o caminho real (RPCs novas, APIs públicas, RLS) foi implementado junto, mas **ainda não foi testado num Supabase real** — segue como pendência bloqueante para produção, não para o desenvolvimento das próximas fases.
+
+17. **Disponibilidade em duas camadas idênticas:** `src/lib/disponibilidade.ts` (TypeScript puro, testado com Vitest) espelha a RPC `horarios_disponiveis`. No modo real, o banco é a fonte da verdade (RPC + EXCLUDE constraint); no demo, `encontrarConflito` simula a mesma garantia. Fuso: banco usa `fuso_horario` do negócio; o demo usa o horário local do navegador (suficiente para demonstração).
+
+18. **Agendamento público atômico via RPC** `criar_agendamento_publico`: valida o slot contra `horarios_disponiveis`, faz upsert do cliente por `(negocio_id, whatsapp)`, exige consentimento LGPD, aplica rate limit por WhatsApp (5/hora) e traduz `exclusion_violation` para mensagem em pt-BR. "Qualquer profissional" = primeiro slot livre por ordem de nome (balanceamento sofisticado fica para depois, se necessário).
+
+19. **Rate limit por IP em memória** nas APIs públicas (primeira barreira, por instância serverless). A proteção forte é o limite por WhatsApp na RPC. Evolução para Upstash/Redis registrada para a Fase 6.
+
+20. **Calendário próprio leve no painel** (dia/semana/mês com CSS grid) em vez de Schedule-X: menos dependências, controle total do drag & drop com `@dnd-kit/core` (semana: arrasta entre dias; dia: arrasta entre horas, mantendo os minutos). Arrastar nunca troca o profissional — só dia/hora — para evitar remarcações acidentais entre pessoas.
+
+21. **Bundle da página pública:** DayPicker, Embla e confetti via `next/dynamic`/import dinâmico (fora do JS inicial). Mesmo assim `/[slug]` está em 180 kB de First Load (meta: 150 kB gzip). Restante vem de Motion + providers globais do layout raiz; otimização final (layouts por grupo de rotas e bundle analyzer) fica para a auditoria da Fase 6 — registrado em PERFORMANCE.md.
+
+22. **Sinal na Fase 2 é apenas informativo:** serviços com `exige_sinal` geram agendamento `pendente_pagamento` (reserva) e a interface avisa que o Pix chega na Fase 3; a expiração automática da reserva (10 min) será ligada com o job da Fase 3/4.

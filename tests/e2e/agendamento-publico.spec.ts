@@ -6,6 +6,7 @@ const SLUG = '/studio-beleza-natural';
 async function escolherDiaEHora(page: Page): Promise<string> {
   const horarios = page.getByRole('button', { name: /^\d{2}:\d{2}$/ });
   const dias = page.locator('.pub-calendario button.rdp-day_button:not([disabled])').filter({ hasText: /^\d{1,2}$/ });
+  await expect(dias.first()).toBeVisible({ timeout: 15_000 }); // calendário entra sob demanda
   const totalDias = await dias.count();
   for (let i = 1; i < Math.min(totalDias, 14); i++) {
     await dias.nth(i).click();
@@ -70,6 +71,7 @@ test.describe('Página pública de agendamento (demonstração)', () => {
     await page.getByRole('button', { name: /Coloração completa/ }).click();
     await page.getByRole('button', { name: /Qualquer profissional/ }).click();
     const dias = page.locator('.pub-calendario button.rdp-day_button:not([disabled])').filter({ hasText: /^\d{1,2}$/ });
+    await expect(dias.first()).toBeVisible({ timeout: 15_000 });
     let reapareceu = false;
     for (let i = 0; i < Math.min(await dias.count(), 10) && !reapareceu; i++) {
       await dias.nth(i).click();
@@ -90,6 +92,7 @@ test.describe('Página pública de agendamento (demonstração)', () => {
     await page.getByRole('button', { name: /Corte feminino/ }).click();
     await page.getByRole('button', { name: /Qualquer profissional/ }).click();
     const dias = page.locator('.pub-calendario button.rdp-day_button:not([disabled])').filter({ hasText: /^\d{1,2}$/ });
+    await expect(dias.first()).toBeVisible({ timeout: 15_000 });
     let aindaAparece = false;
     // O dia reservado foi o primeiro com vagas a partir de amanhã:
     // varremos os dias próximos procurando o vazamento.

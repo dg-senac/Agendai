@@ -12,6 +12,8 @@ test.describe('Painel do negócio (demonstração)', () => {
 
   test('Ctrl+K abre a paleta e navega para o Financeiro', async ({ page }) => {
     await page.goto('/painel');
+    // A paleta entra sob demanda: espera o botão montar (e o atalho ser registrado)
+    await expect(page.getByRole('button', { name: /Abrir paleta de comandos/ })).toBeVisible({ timeout: 15_000 });
     await page.keyboard.press('Control+K');
     const entrada = page.getByPlaceholder(/Para onde você quer ir/);
     await expect(entrada).toBeVisible();

@@ -31,11 +31,11 @@ async function preencherDados(page: Page) {
   await expect(page.getByRole('heading', { name: 'Confira seu agendamento' })).toBeVisible();
 }
 
-async function reservar(page: Page, servico: string) {
+async function reservar(page: Page, servico: string, profissional = 'Qualquer profissional') {
   await page.goto(SLUG);
   await page.getByRole('button', { name: new RegExp(servico) }).click();
   await expect(page.getByRole('heading', { name: /Com quem/ })).toBeVisible();
-  await page.getByRole('button', { name: /Qualquer profissional/ }).click();
+  await page.getByRole('button', { name: new RegExp(profissional) }).click();
   await expect(page.getByRole('heading', { name: 'Escolha o dia e o horário' })).toBeVisible();
   const hora = await escolherDiaEHora(page);
   await page.getByRole('button', { name: 'Continuar' }).click();
@@ -82,15 +82,16 @@ test.describe('Página pública de agendamento (demonstração)', () => {
   });
 
   test('sem double-booking: horário reservado some da vitrine', async ({ page }) => {
-    const hora = await reservar(page, 'Corte feminino');
+    // Com uma profissional específica: o horário dela não pode ser vendido 2x.
+    // (Com "qualquer profissional" o mesmo horário seguiria livre com outra
+    //  pessoa — correto. A garantia sob concorrência real é a constraint
+    //  EXCLUDE do Postgres; aqui validamos a regra na interface demo.)
+    const hora = await reservar(page, 'Corte feminino', 'Camila Santos');
     await expect(page.getByRole('heading', { name: /Agendamento confirmado/ })).toBeVisible();
 
-    // Nova tentativa: o horário ocupado não pode ser oferecido de novo.
-    // (A garantia sob concorrência real é a constraint EXCLUDE do Postgres,
-    //  testada no SQL; aqui validamos a regra refletida na interface demo.)
     await page.goto(SLUG);
     await page.getByRole('button', { name: /Corte feminino/ }).click();
-    await page.getByRole('button', { name: /Qualquer profissional/ }).click();
+    await page.getByRole('button', { name: /Camila Santos/ }).click();
     const dias = page.locator('.pub-calendario button.rdp-day_button:not([disabled])').filter({ hasText: /^\d{1,2}$/ });
     await expect(dias.first()).toBeVisible({ timeout: 15_000 });
     let aindaAparece = false;
